@@ -1,7 +1,9 @@
 import os
 import torch
 import numpy as np
+from tqdm import tqdm
 
+import env
 from env.uav_env import UAVLiDAREnv
 from agents.replay_buffer import ReplayBuffer
 from agents.dqn_agent import DQNAgent
@@ -9,6 +11,7 @@ from agents.dqn_agent import DQNAgent
 
 def train():
     os.makedirs("outputs/checkpoints", exist_ok=True)
+    os.makedirs("outputs/logs", exist_ok=True)
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print("Device:", device)
@@ -42,8 +45,8 @@ def train():
 
     rewards_history = []
 
-    for episode in range(1, episodes + 1):
-        state, _ = env.reset()
+    for episode in tqdm(range(1, episodes + 1)):
+         state, _ = env.reset()
         total_reward = 0
         total_loss = 0
         loss_count = 0
