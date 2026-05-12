@@ -46,7 +46,7 @@ def train():
     rewards_history = []
 
     for episode in tqdm(range(1, episodes + 1)):
-         state, _ = env.reset()
+        state, _ = env.reset()
         total_reward = 0
         total_loss = 0
         loss_count = 0
