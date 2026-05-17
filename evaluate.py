@@ -27,7 +27,11 @@ def evaluate():
         device=device,
     )
 
-    checkpoint = torch.load(checkpoint_path, map_location=device)
+    checkpoint = torch.load(
+        checkpoint_path,
+        map_location=device,
+        weights_only=False
+    )
     agent.q_network.load_state_dict(checkpoint["q_network"])
     agent.epsilon = 0.0
 

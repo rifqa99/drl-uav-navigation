@@ -2,6 +2,7 @@ import os
 import torch
 import numpy as np
 from tqdm import tqdm
+from collections import deque
 
 import env
 from env.uav_env import UAVLiDAREnv
@@ -16,6 +17,12 @@ def train():
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print("Device:", device)
 
+    # 1. Configuration
+    stack_size = 3  # Number of consecutive frames to stack
+    episodes = 500
+    batch_size = 64
+    target_update_freq = 10
+
     env = UAVLiDAREnv(
         seed=42,
         drag=0.15,
@@ -23,12 +30,14 @@ def train():
         max_speed=1.2,
     )
 
-    state_dim = env.observation_space.shape[0]
-    action_dim = env.action_space.n
+    # 2. Adjust Dimensions for Stacking
+    # The new state_dim is the original observation size multiplied by stack_size
+    original_obs_dim = env.observation_space.shape[0]
+    stacked_state_dim = original_obs_dim * stack_size
 
     agent = DQNAgent(
-        state_dim=state_dim,
-        action_dim=action_dim,
+        state_dim=stacked_state_dim,  # Using the expanded dimension (57)
+        action_dim=env.action_space.n,
         lr=1e-3,
         gamma=0.99,
         epsilon=1.0,
@@ -38,15 +47,18 @@ def train():
     )
 
     replay_buffer = ReplayBuffer(capacity=100000)
-
-    episodes = 500
-    batch_size = 64
-    target_update_freq = 10
-
     rewards_history = []
 
     for episode in tqdm(range(1, episodes + 1)):
-        state, _ = env.reset()
+        # 3. Initialize Stack
+        obs, _ = env.reset()
+        # Create a queue that holds the last 3 observations
+        # Initially, fill it with the first observation
+        frame_stack = deque([obs] * stack_size, maxlen=stack_size)
+
+        # Flatten the stack into a single 1D vector for the network
+        state = np.concatenate(list(frame_stack), axis=0)
+
         total_reward = 0
         total_loss = 0
         loss_count = 0
@@ -54,9 +66,14 @@ def train():
         for step in range(env.max_steps):
             action = agent.select_action(state)
 
-            next_state, reward, terminated, truncated, info = env.step(action)
+            next_obs, reward, terminated, truncated, info = env.step(action)
             done = terminated or truncated
 
+            # 4. Update Stack and Create Next State
+            frame_stack.append(next_obs)
+            next_state = np.concatenate(list(frame_stack), axis=0)
+
+            # Store the stacked vectors in the buffer
             replay_buffer.push(state, action, reward, next_state, done)
 
             loss = agent.train_step(replay_buffer, batch_size)
@@ -79,31 +96,20 @@ def train():
         avg_loss = total_loss / loss_count if loss_count > 0 else 0.0
         rewards_history.append(total_reward)
 
-        print(
-            f"Episode {episode:04d} | "
-            f"Reward: {total_reward:.2f} | "
-            f"Loss: {avg_loss:.4f} | "
-            f"Epsilon: {agent.epsilon:.3f} | "
-            f"Success: {info['reached_goal']} | "
-            f"Collision: {info['collision']}"
-        )
+        if episode % 10 == 0:  # Print every 10 episodes to keep logs clean
+            print(
+                f"Ep {episode:03d} | Reward: {total_reward:.2f} | "
+                f"Loss: {avg_loss:.4f} | Eps: {agent.epsilon:.2f} | "
+                f"Goal: {info['reached_goal']}"
+            )
 
         if episode % 100 == 0:
             checkpoint_path = f"outputs/checkpoints/dqn_episode_{episode}.pth"
-
-            torch.save(
-                {
-                    "episode": episode,
-                    "q_network": agent.q_network.state_dict(),
-                    "target_network": agent.target_network.state_dict(),
-                    "optimizer": agent.optimizer.state_dict(),
-                    "epsilon": agent.epsilon,
-                    "rewards_history": rewards_history,
-                },
-                checkpoint_path,
-            )
-
-            print("Saved:", checkpoint_path)
+            torch.save({
+                "episode": episode,
+                "q_network": agent.q_network.state_dict(),
+                "epsilon": agent.epsilon,
+            }, checkpoint_path)
 
     np.save("outputs/logs/rewards_history.npy", np.array(rewards_history))
 

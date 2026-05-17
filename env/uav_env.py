@@ -15,10 +15,10 @@ class UAVLiDAREnv(gym.Env if gym is not None else object):
     def __init__(
         self,
         world_size=10.0,
-        n_lidar=16,
+        n_lidar=64,
         max_steps=3000,
         dt=0.1,
-        drag=0.15,
+        drag=0.2,  # 0.1 hıgh ınterıa -> 0.2 stability
         thrust=1.0,
         max_speed=1.2,
         goal_radius=0.4,
@@ -105,48 +105,75 @@ class UAVLiDAREnv(gym.Env if gym is not None else object):
 
         return self._get_obs(), {}
 
-    def step(self, action):
+
+def step(self, action):
         self.steps += 1
 
+        # 1. Action to Thrust Vector
         action_vec = self.action_vectors[action] * self.thrust
 
+        # 2. Physics Update: Velocity = Previous Velocity + (Thrust * dt) - (Drag * Velocity)
+        # This implements the second-order dynamics from your proposal
         self.vel = self.vel + action_vec * self.dt - self.drag * self.vel
 
+        # Speed Limiter
         speed = np.linalg.norm(self.vel)
         if speed > self.max_speed:
-            self.vel = self.vel / speed * self.max_speed
+            self.vel = self.vel / (speed + 1e-8) * self.max_speed
 
+        # Position Update
         self.pos = self.pos + self.vel * self.dt
         self.pos = np.clip(self.pos, 0.0, self.world_size)
 
+        # Update Trajectory for visualization
         self.trajectory.append(self.pos.copy())
 
+        # 3. Distance and Progress Calculations
         distance = self._distance_to_goal()
         progress = self.prev_distance - distance
         self.prev_distance = distance
 
+        # 4. Status Checks
         collision = self._check_collision()
         reached_goal = distance <= self.goal_radius
         timeout = self.steps >= self.max_steps
 
+        # 5. Advanced Reward Shaping
         reward = 0.0
-        reward += 10.0 * progress
-        reward -= 0.01
-        reward -= 0.05 * np.linalg.norm(action_vec) ** 2
-        reward -= 0.10 * np.linalg.norm(action_vec - self.prev_action) ** 2
 
+        # Progress Reward: High weight for moving toward goal
+        reward += 15.0 * progress
+
+        # Step Penalty: Discourage loitering/unnecessary movement
+        reward -= 0.02
+
+        # Energy Penalty: Discourage high thrust usage (thrust magnitude squared)
+        # Directly supports your "energy-aware" navigation objective
+        energy_use = np.linalg.norm(action_vec)**2
+        reward -= 0.05 * energy_use
+
+        # Smoothness Penalty: Penalize sudden changes in thrust (acceleration variance)
+        # Helps prevent jittery flight paths
+        smoothness_penalty = np.linalg.norm(action_vec - self.prev_action)**2
+        reward -= 0.15 * smoothness_penalty
+
+        # Danger Zone / Safety Penalty: Non-physical soft constraint
+        # Simulates restricted area avoidance in GPS-denied scenarios
         min_lidar = np.min(self._lidar_scan())
-        if min_lidar < 0.15:
-            reward -= 0.5
+        if min_lidar < 0.25:  # "Buffer Zone"
+            # Reward decreases linearly as the agent gets closer to an obstacle
+            reward -= 1.0 * (1.0 - min_lidar)
 
+        # Collision Penalty: Severe penalty to discourage contact
         if collision:
-            reward -= 50.0
+            reward -= 100.0
 
+        # Success Reward: Massive reward for completing the mission
         if reached_goal:
-            reward += 100.0
+            reward += 200.0
 
+        # 6. Housekeeping for next step
         self.prev_action = action_vec.copy()
-
         terminated = collision or reached_goal
         truncated = timeout
 
@@ -154,11 +181,13 @@ class UAVLiDAREnv(gym.Env if gym is not None else object):
             "distance_to_goal": distance,
             "collision": collision,
             "reached_goal": reached_goal,
-            "speed": float(np.linalg.norm(self.vel)),
-            "energy": float(np.linalg.norm(action_vec) ** 2),
+            "speed": float(speed),
+            "energy_use": float(energy_use),
+            "smoothness_violation": float(smoothness_penalty)
         }
 
         return self._get_obs(), reward, terminated, truncated, info
+
 
     def _get_obs(self):
         lidar = self._lidar_scan()
