@@ -77,7 +77,9 @@ class DQNAgent:
         current_q = self.q_network(states).gather(1, actions)
 
         with torch.no_grad():
-            next_q = self.target_network(next_states).max(1, keepdim=True)[0]
+            next_actions = self.q_network(
+                next_states).argmax(dim=1, keepdim=True)
+            next_q = self.target_network(next_states).gather(1, next_actions)
 
         target_q = rewards + self.gamma * next_q * (1 - dones)
 
