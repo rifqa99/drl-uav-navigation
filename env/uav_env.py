@@ -132,8 +132,7 @@ class UAVLiDAREnv(gym.Env if gym is not None else object):
 
         return self._get_obs(), {}
 
-
-def step(self, action):
+    def step(self, action):
         self.steps += 1
 
         # 1. Action to Thrust Vector
@@ -214,7 +213,6 @@ def step(self, action):
         }
 
         return self._get_obs(), reward, terminated, truncated, info
-
 
     def _get_obs(self):
         lidar = self._lidar_scan()
