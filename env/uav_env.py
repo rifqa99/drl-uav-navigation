@@ -86,21 +86,48 @@ class UAVLiDAREnv(gym.Env if gym is not None else object):
         self.trajectory = []
 
     def reset(self, seed=None, options=None):
+
         if seed is not None:
             self.rng = np.random.default_rng(seed)
 
         self.steps = 0
+
         self.vel = np.zeros(2, dtype=np.float32)
         self.prev_action = np.zeros(2, dtype=np.float32)
 
-        self.pos = np.array([1.0, 1.0], dtype=np.float32)
-        self.goal = np.array(
-            [self.world_size - 1.0, self.world_size - 1.0],
-            dtype=np.float32,
-        )
+        # Random start
+        self.pos = np.random.uniform(
+            1.0,
+            3.0,
+            size=2,
+        ).astype(np.float32)
 
-        self.obstacles = self._generate_obstacles()
+        # Random goal
+        self.goal = np.random.uniform(
+            self.world_size - 3.0,
+            self.world_size - 1.0,
+            size=2,
+        ).astype(np.float32)
+
+        # Random obstacles
+        self.obstacles = []
+
+        num_obstacles = np.random.randint(4, 8)
+
+        for _ in range(num_obstacles):
+
+            radius = np.random.uniform(0.8, 1.8)
+
+            center = np.random.uniform(
+                low=2.0,
+                high=self.world_size - 2.0,
+                size=2,
+            ).astype(np.float32)
+
+            self.obstacles.append((center, radius))
+
         self.prev_distance = self._distance_to_goal()
+
         self.trajectory = [self.pos.copy()]
 
         return self._get_obs(), {}
