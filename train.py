@@ -136,7 +136,7 @@ def train(checkpoint_to_load=None):  # Add this parameter option
 
 if __name__ == "__main__":
     # To start Phase 1 (Easy Map), leave it empty:
-    # train(checkpoint_to_load=None)
+    train(checkpoint_to_load=None)
 
     # To start Phase 2 (Hard Map), comment out above and use:
-    train(checkpoint_to_load="outputs/checkpoints/dqn_episode_500.pth")
+    # train(checkpoint_to_load="outputs/checkpoints/dqn_episode_500.pth")
