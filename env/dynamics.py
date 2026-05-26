@@ -24,11 +24,11 @@ class AdvancedUAVDynamics:
         torque = 0.0
 
         if action == 1:
-            thrust = 3.0   # Linear forward force
+            thrust = 3.0    # Linear forward force
         elif action == 2:
             thrust = -1.5  # Linear breaking force
         elif action == 3:
-            torque = 0.5  # Clockwise rotational torque
+            torque = 0.5   # Clockwise rotational torque
         elif action == 4:
             torque = -0.5  # Counter-clockwise rotational torque
 

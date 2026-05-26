@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
+# Swapped out basic network class targeting for the new Dueling architecture
 from agents.dueling_dqn import DuelingDQN
 
 
@@ -20,34 +21,18 @@ class DQNAgent:
         device="cpu",
     ):
         self.device = device
-
         self.gamma = gamma
-
         self.epsilon = epsilon
         self.epsilon_decay = epsilon_decay
         self.epsilon_min = epsilon_min
-
         self.action_dim = action_dim
 
-        self.q_network = DuelingDQN(
-            state_dim,
-            action_dim,
-        ).to(device)
+        # Main policy and target networks using Dueling layers
+        self.q_network = DuelingDQN(state_dim, action_dim).to(device)
+        self.target_network = DuelingDQN(state_dim, action_dim).to(device)
+        self.target_network.load_state_dict(self.q_network.state_dict())
 
-        self.target_network = DuelingDQN(
-            state_dim,
-            action_dim,
-        ).to(device)
-
-        self.target_network.load_state_dict(
-            self.q_network.state_dict()
-        )
-
-        self.optimizer = optim.Adam(
-            self.q_network.parameters(),
-            lr=lr,
-        )
-
+        self.optimizer = optim.Adam(self.q_network.parameters(), lr=lr)
         self.loss_fn = nn.MSELoss()
 
     def select_action(self, state):
@@ -55,7 +40,6 @@ class DQNAgent:
             return random.randrange(self.action_dim)
 
         state_tensor = torch.FloatTensor(state).unsqueeze(0).to(self.device)
-
         with torch.no_grad():
             q_values = self.q_network(state_tensor)
 
@@ -77,12 +61,12 @@ class DQNAgent:
         current_q = self.q_network(states).gather(1, actions)
 
         with torch.no_grad():
+            # Double DQN action evaluation scheme
             next_actions = self.q_network(
                 next_states).argmax(dim=1, keepdim=True)
             next_q = self.target_network(next_states).gather(1, next_actions)
 
         target_q = rewards + self.gamma * next_q * (1 - dones)
-
         loss = self.loss_fn(current_q, target_q)
 
         self.optimizer.zero_grad()
@@ -92,12 +76,7 @@ class DQNAgent:
         return loss.item()
 
     def update_target_network(self):
-        self.target_network.load_state_dict(
-            self.q_network.state_dict()
-        )
+        self.target_network.load_state_dict(self.q_network.state_dict())
 
     def decay_epsilon(self):
-        self.epsilon = max(
-            self.epsilon_min,
-            self.epsilon * self.epsilon_decay,
-        )
+        self.epsilon = max(self.epsilon_min, self.epsilon * self.epsilon_decay)

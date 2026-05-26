@@ -36,7 +36,8 @@ def train():
     stacked_state_dim = original_obs_dim * stack_size
 
     agent = DQNAgent(
-        state_dim=stacked_state_dim,  # Using the expanded dimension (57)
+        # # Automatically resolves to 201 channels (67 * 3)
+        state_dim=stacked_state_dim,
         action_dim=env.action_space.n,
         lr=1e-3,
         gamma=0.99,

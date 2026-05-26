@@ -22,9 +22,9 @@ class UAVLiDAREnv(gym.Env if gym is not None else object):
         drag=0.2,
         thrust=1.0,
         max_speed=1.2,
-        goal_radius=0.4,
+        goal_radius=0.6,          # Expanded slightly for easier initial convergence
         collision_radius=0.25,
-        n_obstacles=8,
+        n_obstacles=5,            # Reduced slightly to allow policy discovery
         obstacle_radius_range=(0.3, 0.8),
         seed=None,
     ):
@@ -45,36 +45,18 @@ class UAVLiDAREnv(gym.Env if gym is not None else object):
         self.n_obstacles = n_obstacles
         self.obstacle_radius_range = obstacle_radius_range
 
-        # Physics Module Initialization
+        # Physics Module Initialization (Fixed placement)
         self.dynamics = AdvancedUAVDynamics()
-        self.theta = 0.0  # Current heading angle
-        self.omega = 0.0  # Current angular velocity
+        self.theta = 0.0
+        self.omega = 0.0
 
         self.rng = np.random.default_rng(seed)
 
-        self.action_vectors = np.array(
-            [
-                [0.0, 0.0],
-                [1.0, 0.0],
-                [-1.0, 0.0],
-                [0.0, 1.0],
-                [0.0, -1.0],
-                [1.0, 1.0],
-                [1.0, -1.0],
-                [-1.0, 1.0],
-                [-1.0, -1.0],
-            ],
-            dtype=np.float32,
-        )
+        # 5 Explicit Rotational/Thrust Actions
+        self.action_space = spaces.Discrete(5)
 
-        for i in range(len(self.action_vectors)):
-            norm = np.linalg.norm(self.action_vectors[i])
-            if norm > 0:
-                self.action_vectors[i] /= norm
-
-        self.action_space = spaces.Discrete(len(self.action_vectors))
-
-        obs_dim = self.n_lidar + 3
+        # New dimension: 64 (LiDAR) + 5 (vx, vy, theta, omega, target_angle) = 69
+        obs_dim = self.n_lidar + 5
         self.observation_space = spaces.Box(
             low=-1.0,
             high=1.0,
@@ -88,7 +70,7 @@ class UAVLiDAREnv(gym.Env if gym is not None else object):
         self.obstacles = None
         self.steps = 0
         self.prev_distance = None
-        self.prev_action = np.zeros(2, dtype=np.float32)
+        self.prev_action = 0  # Discrete tracking
         self.trajectory = []
 
     def reset(self, seed=None, options=None):
@@ -100,20 +82,13 @@ class UAVLiDAREnv(gym.Env if gym is not None else object):
         self.omega = 0.0
 
         self.vel = np.zeros(2, dtype=np.float32)
-        self.prev_action = np.zeros(2, dtype=np.float32)
+        self.prev_action = 0
 
         self.pos = np.random.uniform(1.0, 3.0, size=2).astype(np.float32)
         self.goal = np.random.uniform(
             self.world_size - 3.0, self.world_size - 1.0, size=2).astype(np.float32)
 
-        self.obstacles = []
-        num_obstacles = np.random.randint(4, 8)
-        for _ in range(num_obstacles):
-            radius = np.random.uniform(0.8, 1.8)
-            center = np.random.uniform(
-                low=2.0, high=self.world_size - 2.0, size=2).astype(np.float32)
-            self.obstacles.append((center, radius))
-
+        self.obstacles = self._generate_obstacles()
         self.prev_distance = self._distance_to_goal()
         self.trajectory = [self.pos.copy()]
 
@@ -121,9 +96,8 @@ class UAVLiDAREnv(gym.Env if gym is not None else object):
 
     def step(self, action):
         self.steps += 1
-        action_vec = self.action_vectors[action] * self.thrust
 
-        # --- NEW ADVANCED PHYSICS CALL (Replaced old translation calculations) ---
+        # --- ADVANCED RIGID-BODY KINEMATICS CALL ---
         self.pos, self.vel, self.theta, self.omega, accel = self.dynamics.update_physics(
             self.pos, self.vel, self.theta, self.omega, action
         )
@@ -150,10 +124,13 @@ class UAVLiDAREnv(gym.Env if gym is not None else object):
         reward += 15.0 * progress
         reward -= 0.02
 
-        energy_use = np.linalg.norm(action_vec)**2
+        # Energy penalty based on discrete choice active work
+        energy_use = 1.0 if action in [1, 2] else (
+            0.2 if action in [3, 4] else 0.0)
         reward -= 0.05 * energy_use
 
-        smoothness_penalty = np.linalg.norm(action_vec - self.prev_action)**2
+        # Smoothness penalty handles change in discrete action paths
+        smoothness_penalty = 1.0 if action != self.prev_action else 0.0
         reward -= 0.15 * smoothness_penalty
 
         min_lidar = np.min(self._lidar_scan())
@@ -166,7 +143,7 @@ class UAVLiDAREnv(gym.Env if gym is not None else object):
         if reached_goal:
             reward += 200.0
 
-        self.prev_action = action_vec.copy()
+        self.prev_action = action
         terminated = collision or reached_goal
         truncated = timeout
 
@@ -185,11 +162,19 @@ class UAVLiDAREnv(gym.Env if gym is not None else object):
         lidar = self._lidar_scan()
         vx = self.vel[0] / self.max_speed
         vy = self.vel[1] / self.max_speed
+
+        # Integrated internal orientation features for full state capability
+        norm_theta = self.theta / np.pi
+        norm_omega = self.omega / np.pi
+
         target_vec = self.goal - self.pos
         target_angle = np.arctan2(target_vec[1], target_vec[0]) / np.pi
 
-        obs = np.concatenate(
-            [lidar, np.array([vx, vy, target_angle], dtype=np.float32)])
+        obs = np.concatenate([
+            lidar,
+            np.array([vx, vy, norm_theta, norm_omega,
+                     target_angle], dtype=np.float32)
+        ])
         return obs.astype(np.float32)
 
     def _lidar_scan(self):
@@ -310,44 +295,4 @@ class UAVLiDAREnv(gym.Env if gym is not None else object):
             ax.plot([self.pos[0], end[0]], [self.pos[1], end[1]],
                     linewidth=0.8, alpha=0.5)
 
-        ax.arrow(self.pos[0], self.pos[1], self.vel[0],
-                 self.vel[1], head_width=0.15, length_includes_head=True)
-        ax.set_title(f"Step: {self.steps}")
         plt.show()
-
-
-if __name__ == "__main__":
-    env = UAVLiDAREnv(seed=42)
-    obs, info = env.reset()
-    print("Observation shape:", obs.shape)
-
-    total_reward = 0
-    for _ in range(500):
-        target_vec = env.goal - env.pos
-        target_vec = target_vec / (np.linalg.norm(target_vec) + 1e-8)
-
-        lidar = env._lidar_scan()
-        action_dirs = env.action_vectors
-        scores = action_dirs @ target_vec
-
-        for i, action_dir in enumerate(action_dirs):
-            if i == 0:
-                continue
-            action_angle = np.arctan2(action_dir[1], action_dir[0])
-            lidar_angles = np.linspace(
-                0, 2 * np.pi, env.n_lidar, endpoint=False)
-            angle_diffs = np.abs(
-                np.angle(np.exp(1j * (lidar_angles - action_angle))))
-            nearest_lidar_idx = np.argmin(angle_diffs)
-            obstacle_penalty = 4.0 * (1.0 - lidar[nearest_lidar_idx])
-            scores[i] -= obstacle_penalty
-
-        action = int(np.argmax(scores[1:]) + 1)
-        obs, reward, terminated, truncated, info = env.step(action)
-        total_reward += reward
-        print(reward, info)
-
-        if terminated or truncated:
-            break
-    print("Total reward:", total_reward)
-    env.render()
