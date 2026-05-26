@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from env.dynamics import AdvancedUAVDynamics
+from env.rewards import UAVRewardShaping
 
 try:
     import gymnasium as gym
@@ -47,6 +48,8 @@ class UAVLiDAREnv(gym.Env if gym is not None else object):
 
         # Physics Module Initialization
         self.dynamics = AdvancedUAVDynamics()
+        self.reward_shaper = UAVRewardShaping(
+            world_size=self.world_size)  # Add this line
         self.theta = 0.0
         self.omega = 0.0
 
@@ -119,32 +122,22 @@ class UAVLiDAREnv(gym.Env if gym is not None else object):
         reached_goal = distance <= self.goal_radius
         timeout = self.steps >= self.max_steps
 
-        # Reward Shaping
-        reward = 0.0
-        reward += 15.0 * progress
-        reward -= 0.02
+        # --- MODULAR REWARD SHAPING CALL ---
+        reward = self.reward_shaper.compute_reward(
+            progress=progress,
+            current_action=action,
+            prev_action=self.prev_action,
+            lidar_readings=self._lidar_scan(),
+            distance=distance,
+            collision=collision,
+            reached_goal=reached_goal
+        )
 
-        # FALLBACK FLOOR: Absolute global distance-based reward to break stagnation
-        reward += 2.0 * (self.world_size - distance) / self.world_size
-
-        # Energy penalty based on discrete choice active work
+        # --- RE-ESTABLISH METRICS FOR INFO LOGGING ---
+        # Matching the exact evaluation math inside env/rewards.py
         energy_use = 1.0 if action in [1, 2] else (
             0.2 if action in [3, 4] else 0.0)
-        reward -= 0.05 * energy_use
-
-        # Smoothness penalty handles change in discrete action paths
         smoothness_penalty = 1.0 if action != self.prev_action else 0.0
-        reward -= 0.15 * smoothness_penalty
-
-        min_lidar = np.min(self._lidar_scan())
-        if min_lidar < 0.25:
-            reward -= 1.0 * (1.0 - min_lidar)
-
-        if collision:
-            reward -= 100.0
-
-        if reached_goal:
-            reward += 200.0
 
         self.prev_action = action
         terminated = collision or reached_goal

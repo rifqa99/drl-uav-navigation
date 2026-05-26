@@ -18,11 +18,12 @@ def train(checkpoint_to_load=None):
     print("Device:", device)
 
     stack_size = 3
-    episodes = 1500
+
+    # 1. FIXED: Set your ultimate final total target here (e.g., 3000 episodes)
+    episodes = 3000
     batch_size = 64
     target_update_freq = 10
 
-    # Phase 1 Initial Setup: Start training with fewer obstacles!
     num_obstacles_current = 2 if checkpoint_to_load is None else 8
 
     env = UAVLiDAREnv(
@@ -30,7 +31,7 @@ def train(checkpoint_to_load=None):
         drag=0.15,
         thrust=0.6,
         max_speed=1.2,
-        n_obstacles=num_obstacles_current  # Controlled dynamically
+        n_obstacles=num_obstacles_current
     )
 
     original_obs_dim = env.observation_space.shape[0]
@@ -42,13 +43,14 @@ def train(checkpoint_to_load=None):
         lr=1e-3,
         gamma=0.99,
         epsilon=1.0 if checkpoint_to_load is None else 0.2,
-        epsilon_decay=0.998,  # Slowed down decay
+        epsilon_decay=0.998,
         epsilon_min=0.05,
         device=device,
     )
 
-    # --- FIXED VARIABLE DECORATION ORDER ---
-    start_episode = 1  # Set default baseline first
+    # 2. FIXED: Core variables initialization sequence
+    start_episode = 1
+    rewards_history = []  # Will be preserved or loaded from Drive below
 
     print(f"\n Number of obstacles initialized: {env.n_obstacles}")
 
@@ -59,15 +61,22 @@ def train(checkpoint_to_load=None):
         agent.q_network.load_state_dict(checkpoint["q_network"])
         agent.target_network.load_state_dict(checkpoint["q_network"])
 
-        # Pull saved progress states cleanly
         agent.epsilon = checkpoint.get("epsilon", 0.2)
         start_episode = checkpoint.get("episode", 1) + 1
         print(f"Resuming training directly from Episode: {start_episode}")
 
-    replay_buffer = ReplayBuffer(capacity=100000)
-    rewards_history = []
+        # --- NEW: LOAD PAST HISTORY ARRAY FROM DRIVE ---
+        drive_history_path = "/content/drive/MyDrive/drl-uav-navigation/outputs/rewards_history.npy"
+        if os.path.exists(drive_history_path):
+            rewards_history = list(np.load(drive_history_path))
+            print(
+                f"Successfully loaded {len(rewards_history)} steps of past reward history from Drive!")
+        else:
+            print("Warning: Checkpoint loaded, but no previous rewards_history.npy found on Drive. Starting history fresh.")
 
-    # Update loop index dynamically
+    replay_buffer = ReplayBuffer(capacity=100000)
+
+    # Update loop index dynamically to target maximum range
     for episode in tqdm(range(start_episode, episodes + 1)):
         obs, _ = env.reset()
         frame_stack = deque([obs] * stack_size, maxlen=stack_size)
@@ -79,7 +88,6 @@ def train(checkpoint_to_load=None):
 
         for step in range(env.max_steps):
             action = agent.select_action(state)
-
             next_obs, reward, terminated, truncated, info = env.step(action)
             done = terminated or truncated
 
@@ -105,6 +113,8 @@ def train(checkpoint_to_load=None):
             agent.update_target_network()
 
         avg_loss = total_loss / loss_count if loss_count > 0 else 0.0
+
+        # Append latest metrics to your tracking list
         rewards_history.append(total_reward)
 
         if episode % 10 == 0:
@@ -114,6 +124,7 @@ def train(checkpoint_to_load=None):
                 f"Goal: {info['reached_goal']}"
             )
 
+        # --- FIXED: SAVE BOTH WEIGHTS AND ACCUMULATED LOGS TO DRIVE EVERY 100 EPISODES ---
         if episode % 100 == 0:
             checkpoint_path = f"/content/drive/MyDrive/drl-uav-navigation/outputs/checkpoints/dqn_episode_{episode}.pth"
             torch.save({
@@ -122,7 +133,16 @@ def train(checkpoint_to_load=None):
                 "epsilon": agent.epsilon,
             }, checkpoint_path)
 
-    np.save("outputs/logs/rewards_history.npy", np.array(rewards_history))
+            # Save history incrementally so it's always safe on your Drive
+            np.save("/content/drive/MyDrive/drl-uav-navigation/outputs/rewards_history.npy",
+                    np.array(rewards_history))
+            print(
+                f"-> Saved Checkpoint {episode} and complete reward history up to Drive.")
+
+    # Final backup save when entire pipeline wraps up completely
+    np.save("/content/drive/MyDrive/drl-uav-navigation/outputs/rewards_history.npy",
+            np.array(rewards_history))
+    print("Training finished successfully. Final history file secured on Google Drive!")
 
 
 if __name__ == "__main__":
@@ -132,4 +152,4 @@ if __name__ == "__main__":
     train(checkpoint_to_load=None)
 
     # Future Use (Once your new run saves fresh compatible checkpoints):
-    train(checkpoint_to_load="/content/drive/MyDrive/drl-uav-navigation/outputs/checkpoints/dqn_episode_500.pth")
+    train(checkpoint_to_load="/content/drive/MyDrive/drl-uav-navigation/outputs/checkpoints/dqn_episode_1500.pth")
