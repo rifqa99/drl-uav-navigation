@@ -53,7 +53,6 @@ def train(checkpoint_to_load=None):  # Add this parameter option
     # Debug print for obstacle count
     print(f"\n number of obstacles: {env.n_obstacles}")
 
-    start_episode = checkpoint.get("episode", 1) + 1
     if checkpoint_to_load is not None:
         print(f"Loading weights from checkpoint: {checkpoint_to_load}")
         checkpoint = torch.load(
@@ -66,6 +65,8 @@ def train(checkpoint_to_load=None):  # Add this parameter option
 
     replay_buffer = ReplayBuffer(capacity=100000)
     rewards_history = []
+
+    start_episode = checkpoint.get("episode", 1) + 1
 
     # Update loop index to account for start_episode
     for episode in tqdm(range(start_episode, episodes + 1)):
