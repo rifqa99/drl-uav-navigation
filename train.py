@@ -66,6 +66,8 @@ def train(checkpoint_to_load=None):  # Add this parameter option
     # Update loop index to account for start_episode
     for episode in tqdm(range(start_episode, episodes + 1)):
 
+        # Debug print for obstacle count
+        print(f"\n number of obstacles: {env.n_obstacles}")
         # 3. Initialize Stack
         obs, _ = env.reset()
         # Create a queue that holds the last 3 observations
