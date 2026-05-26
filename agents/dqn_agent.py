@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-from models.dqn_network import DQNNetwork
+from agents.dueling_dqn import DuelingDQN
 
 
 class DQNAgent:
@@ -29,12 +29,12 @@ class DQNAgent:
 
         self.action_dim = action_dim
 
-        self.q_network = DQNNetwork(
+        self.q_network = DuelingDQN(
             state_dim,
             action_dim,
         ).to(device)
 
-        self.target_network = DQNNetwork(
+        self.target_network = DuelingDQN(
             state_dim,
             action_dim,
         ).to(device)
