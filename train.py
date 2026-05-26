@@ -14,9 +14,6 @@ def train(checkpoint_to_load=None):  # Add this parameter option
     os.makedirs("outputs/checkpoints", exist_ok=True)
     os.makedirs("outputs/logs", exist_ok=True)
 
-    # Debug print for obstacle count
-    print(f"\n number of obstacles: {env.n_obstacles}")
-
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print("Device:", device)
 
@@ -52,7 +49,11 @@ def train(checkpoint_to_load=None):  # Add this parameter option
     )
 
     # --- CRITICAL: WEIGHT RE-LOADING LOGIC ---
-    start_episode = 1
+
+    # Debug print for obstacle count
+    print(f"\n number of obstacles: {env.n_obstacles}")
+
+    start_episode = checkpoint.get("episode", 1) + 1
     if checkpoint_to_load is not None:
         print(f"Loading weights from checkpoint: {checkpoint_to_load}")
         checkpoint = torch.load(
