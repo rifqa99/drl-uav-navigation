@@ -14,6 +14,9 @@ def train(checkpoint_to_load=None):  # Add this parameter option
     os.makedirs("outputs/checkpoints", exist_ok=True)
     os.makedirs("outputs/logs", exist_ok=True)
 
+    # Debug print for obstacle count
+    print(f"\n number of obstacles: {env.n_obstacles}")
+
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print("Device:", device)
 
@@ -65,9 +68,6 @@ def train(checkpoint_to_load=None):  # Add this parameter option
 
     # Update loop index to account for start_episode
     for episode in tqdm(range(start_episode, episodes + 1)):
-
-        # Debug print for obstacle count
-        print(f"\n number of obstacles: {env.n_obstacles}")
         # 3. Initialize Stack
         obs, _ = env.reset()
         # Create a queue that holds the last 3 observations
@@ -134,7 +134,7 @@ def train(checkpoint_to_load=None):  # Add this parameter option
 
 if __name__ == "__main__":
     # To start Phase 1 (Easy Map), leave it empty:
-    train(checkpoint_to_load=None)
+    # train(checkpoint_to_load=None)
 
     # To start Phase 2 (Hard Map), comment out above and use:
-    # train(checkpoint_to_load="outputs/checkpoints/dqn_episode_200.pth")
+    train(checkpoint_to_load="outputs/checkpoints/dqn_episode_500.pth")
