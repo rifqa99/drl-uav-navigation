@@ -107,7 +107,7 @@ def train(checkpoint_to_load=None):
         avg_loss = total_loss / loss_count if loss_count > 0 else 0.0
         rewards_history.append(total_reward)
 
-        if episode % 10 == 0:
+        if episode % 1 == 0:
             print(
                 f"Ep {episode:03d} | Reward: {total_reward:.2f} | "
                 f"Loss: {avg_loss:.4f} | Eps: {agent.epsilon:.2f} | "
