@@ -107,7 +107,7 @@ def train(checkpoint_to_load=None):
         avg_loss = total_loss / loss_count if loss_count > 0 else 0.0
         rewards_history.append(total_reward)
 
-        if episode % 1 == 0:
+        if episode % 10 == 0:
             print(
                 f"Ep {episode:03d} | Reward: {total_reward:.2f} | "
                 f"Loss: {avg_loss:.4f} | Eps: {agent.epsilon:.2f} | "
@@ -115,7 +115,7 @@ def train(checkpoint_to_load=None):
             )
 
         if episode % 100 == 0:
-            checkpoint_path = f"/content/drive/MyDrive/dqn_episode_{episode}.pth"
+            checkpoint_path = f"/content/drive/MyDrive/drl-uav-navigation/outputs/checkpoints/dqn_episode_{episode}.pth"
             torch.save({
                 "episode": episode,
                 "q_network": agent.q_network.state_dict(),
@@ -132,4 +132,4 @@ if __name__ == "__main__":
     train(checkpoint_to_load=None)
 
     # Future Use (Once your new run saves fresh compatible checkpoints):
-    train(checkpoint_to_load="/content/drive/MyDrive/dqn_episode_500.pth")
+    train(checkpoint_to_load="/content/drive/MyDrive/drl-uav-navigation/outputs/checkpoints/dqn_episode_500.pth")
