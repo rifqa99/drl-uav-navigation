@@ -10,47 +10,62 @@ from agents.replay_buffer import ReplayBuffer
 from agents.dqn_agent import DQNAgent
 
 
-def train():
+def train(checkpoint_to_load=None):  # Add this parameter option
     os.makedirs("outputs/checkpoints", exist_ok=True)
     os.makedirs("outputs/logs", exist_ok=True)
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print("Device:", device)
 
-    # 1. Configuration
-    stack_size = 3  # Number of consecutive frames to stack
+    stack_size = 3
     episodes = 500
     batch_size = 64
     target_update_freq = 10
+
+    # Phase 1 Initial Setup: Start training with fewer obstacles!
+    num_obstacles_current = 2 if checkpoint_to_load is None else 8
 
     env = UAVLiDAREnv(
         seed=42,
         drag=0.15,
         thrust=0.6,
         max_speed=1.2,
+        n_obstacles=num_obstacles_current  # Controlled dynamically
     )
 
-    # 2. Adjust Dimensions for Stacking
-    # The new state_dim is the original observation size multiplied by stack_size
     original_obs_dim = env.observation_space.shape[0]
     stacked_state_dim = original_obs_dim * stack_size
 
     agent = DQNAgent(
-        # # Automatically resolves to 201 channels (67 * 3)
         state_dim=stacked_state_dim,
         action_dim=env.action_space.n,
         lr=1e-3,
         gamma=0.99,
-        epsilon=1.0,
-        epsilon_decay=0.995,
+        # Start with low exploration if reloading
+        epsilon=1.0 if checkpoint_to_load is None else 0.2,
+        epsilon_decay=0.998,  # Slowed down decay as discussed
         epsilon_min=0.05,
         device=device,
     )
 
+    # --- CRITICAL: WEIGHT RE-LOADING LOGIC ---
+    start_episode = 1
+    if checkpoint_to_load is not None:
+        print(f"Loading weights from checkpoint: {checkpoint_to_load}")
+        checkpoint = torch.load(
+            checkpoint_to_load, map_location=device, weights_only=False)
+        agent.q_network.load_state_dict(checkpoint["q_network"])
+        agent.target_network.load_state_dict(checkpoint["q_network"])
+        # Optional: pull previous epsilon if you don't want to force 0.2
+        agent.epsilon = checkpoint.get("epsilon", 0.2)
+        start_episode = checkpoint.get("episode", 1) + 1
+
     replay_buffer = ReplayBuffer(capacity=100000)
     rewards_history = []
 
-    for episode in tqdm(range(1, episodes + 1)):
+    # Update loop index to account for start_episode
+    for episode in tqdm(range(start_episode, episodes + 1)):
+
         # 3. Initialize Stack
         obs, _ = env.reset()
         # Create a queue that holds the last 3 observations
@@ -105,7 +120,7 @@ def train():
             )
 
         if episode % 100 == 0:
-            checkpoint_path = f"outputs/checkpoints/dqn_episode_{episode}.pth"
+            checkpoint_path = f"/content/drive/MyDrive/dqn_episode_{episode}.pth"
             torch.save({
                 "episode": episode,
                 "q_network": agent.q_network.state_dict(),
@@ -116,4 +131,8 @@ def train():
 
 
 if __name__ == "__main__":
-    train()
+    # To start Phase 1 (Easy Map), leave it empty:
+    train(checkpoint_to_load=None)
+
+    # To start Phase 2 (Hard Map), comment out above and use:
+    # train(checkpoint_to_load="outputs/checkpoints/dqn_episode_200.pth")
