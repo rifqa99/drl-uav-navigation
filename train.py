@@ -10,7 +10,7 @@ from agents.replay_buffer import ReplayBuffer
 from agents.dqn_agent import DQNAgent
 
 
-def train(checkpoint_to_load=None):  # Add this parameter option
+def train(checkpoint_to_load=None):
     os.makedirs("outputs/checkpoints", exist_ok=True)
     os.makedirs("outputs/logs", exist_ok=True)
 
@@ -41,17 +41,16 @@ def train(checkpoint_to_load=None):  # Add this parameter option
         action_dim=env.action_space.n,
         lr=1e-3,
         gamma=0.99,
-        # Start with low exploration if reloading
         epsilon=1.0 if checkpoint_to_load is None else 0.2,
-        epsilon_decay=0.998,  # Slowed down decay as discussed
+        epsilon_decay=0.998,  # Slowed down decay
         epsilon_min=0.05,
         device=device,
     )
 
-    # --- CRITICAL: WEIGHT RE-LOADING LOGIC ---
+    # --- FIXED VARIABLE DECORATION ORDER ---
+    start_episode = 1  # Set default baseline first
 
-    # Debug print for obstacle count
-    print(f"\n number of obstacles: {env.n_obstacles}")
+    print(f"\n Number of obstacles initialized: {env.n_obstacles}")
 
     if checkpoint_to_load is not None:
         print(f"Loading weights from checkpoint: {checkpoint_to_load}")
@@ -59,24 +58,19 @@ def train(checkpoint_to_load=None):  # Add this parameter option
             checkpoint_to_load, map_location=device, weights_only=False)
         agent.q_network.load_state_dict(checkpoint["q_network"])
         agent.target_network.load_state_dict(checkpoint["q_network"])
-        # Optional: pull previous epsilon if you don't want to force 0.2
+
+        # Pull saved progress states cleanly
         agent.epsilon = checkpoint.get("epsilon", 0.2)
         start_episode = checkpoint.get("episode", 1) + 1
+        print(f"Resuming training directly from Episode: {start_episode}")
 
     replay_buffer = ReplayBuffer(capacity=100000)
     rewards_history = []
 
-    start_episode = checkpoint.get("episode", 1) + 1
-
-    # Update loop index to account for start_episode
+    # Update loop index dynamically
     for episode in tqdm(range(start_episode, episodes + 1)):
-        # 3. Initialize Stack
         obs, _ = env.reset()
-        # Create a queue that holds the last 3 observations
-        # Initially, fill it with the first observation
         frame_stack = deque([obs] * stack_size, maxlen=stack_size)
-
-        # Flatten the stack into a single 1D vector for the network
         state = np.concatenate(list(frame_stack), axis=0)
 
         total_reward = 0
@@ -89,13 +83,10 @@ def train(checkpoint_to_load=None):  # Add this parameter option
             next_obs, reward, terminated, truncated, info = env.step(action)
             done = terminated or truncated
 
-            # 4. Update Stack and Create Next State
             frame_stack.append(next_obs)
             next_state = np.concatenate(list(frame_stack), axis=0)
 
-            # Store the stacked vectors in the buffer
             replay_buffer.push(state, action, reward, next_state, done)
-
             loss = agent.train_step(replay_buffer, batch_size)
 
             if loss is not None:
@@ -116,7 +107,7 @@ def train(checkpoint_to_load=None):  # Add this parameter option
         avg_loss = total_loss / loss_count if loss_count > 0 else 0.0
         rewards_history.append(total_reward)
 
-        if episode % 10 == 0:  # Print every 10 episodes to keep logs clean
+        if episode % 10 == 0:
             print(
                 f"Ep {episode:03d} | Reward: {total_reward:.2f} | "
                 f"Loss: {avg_loss:.4f} | Eps: {agent.epsilon:.2f} | "
@@ -135,8 +126,10 @@ def train(checkpoint_to_load=None):  # Add this parameter option
 
 
 if __name__ == "__main__":
-    # To start Phase 1 (Easy Map), leave it empty:
+    # CRITICAL: Since you are changing environment dimensions (adding theta/omega),
+    # remember that you cannot load your old pre-fix episode 500 weights.
+    # Start fresh here to build a completely stable, fully compatible (207, 5) shape baseline!
     train(checkpoint_to_load=None)
 
-    # To start Phase 2 (Hard Map), comment out above and use:
-    # train(checkpoint_to_load="outputs/checkpoints/dqn_episode_500.pth")
+    # Future Use (Once your new run saves fresh compatible checkpoints):
+    # train(checkpoint_to_load="/content/drive/MyDrive/dqn_episode_500.pth")
