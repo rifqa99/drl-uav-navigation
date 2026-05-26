@@ -18,7 +18,7 @@ def train(checkpoint_to_load=None):  # Add this parameter option
     print("Device:", device)
 
     stack_size = 3
-    episodes = 500
+    episodes = 1500
     batch_size = 64
     target_update_freq = 10
 
