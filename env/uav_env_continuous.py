@@ -22,10 +22,10 @@ class UAVLiDARContinuousEnv(gym.Env if gym is not None else object):
         dt=0.1,
         drag=0.2,
         thrust=1.0,
-        max_speed=0.8,
-        goal_radius=0.6,
+        max_speed=0.6,
+        goal_radius=1.0,
         collision_radius=0.25,
-        n_obstacles=5,
+        n_obstacles=0,
         obstacle_radius_range=(0.3, 0.8),
         seed=None,
     ):
