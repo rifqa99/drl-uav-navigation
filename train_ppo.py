@@ -28,7 +28,7 @@ def train_ppo(checkpoint_to_load=None):
     os.makedirs(checkpoint_dir, exist_ok=True)
 
     # Initialize at Phase 1 (2 Obstacles)
-    env = UAVLiDARContinuousEnv(n_obstacles=num_obstacles_phase1)
+    env = UAVLiDARContinuousEnv(n_obstacles=0)
 
     stacked_state_dim = env.observation_space.shape[0] * stack_size
     action_dim = env.action_space.shape[0]
