@@ -3,6 +3,7 @@ import torch
 import numpy as np
 from collections import deque
 
+# Cleaner modular imports pointing to your verified project structure
 from env.uav_env_continuous import UAVLiDARContinuousEnv
 from agents.ppo_agent import PPOAgent
 from agents.ppo_memory import PPOMemory
@@ -14,30 +15,30 @@ def train_ppo(checkpoint_to_load=None):
 
     # --- Hyperparameters ---
     max_episodes = 3000
-    # update_timestep = 2000      # Update PPO policy every 2000 environment steps
+    # Fixed step collection window size ensuring clean rectangular tensors
+    rollout_horizon = 512
     lr = 3e-4
     gamma = 0.99
-    K_epochs = 10               # Optimize code parameters for 10 epochs per batch
+    K_epochs = 10               # Optimize parameters for 10 epochs per batch
     eps_clip = 0.2              # PPO surrogate loss clipping range
     stack_size = 3
-    num_obstacles_phase1 = 2
-    num_obstacles_phase2 = 8
+    num_obstacles_phase1 = 2    # Initial easy tracking layout
+    num_obstacles_phase2 = 8    # Target dense obstacle testing maze
 
-    # Create Drive directories for history tracking and checkpoints
+    # Setup Google Drive output directories
     save_dir = "/content/drive/MyDrive/drl-uav-navigation/outputs_ppo"
     checkpoint_dir = os.path.join(save_dir, "checkpoints")
     os.makedirs(checkpoint_dir, exist_ok=True)
 
-    # Initialize Continuous Environment
-    # Starting Phase 1 with 2 obstacles to match your Curriculum setup perfectly
+    # Initialize Continuous Environment (Phase 1)
     env = UAVLiDARContinuousEnv(n_obstacles=num_obstacles_phase1)
 
-    # Calculate dimensional stacks (3 * 69 = 207)
+    # Calculate dimensions for input tensors (3 frames * 69 features = 207 dim)
     original_obs_dim = env.observation_space.shape[0]
     stacked_state_dim = original_obs_dim * stack_size
-    action_dim = env.action_space.shape[0]  # 2 channels: [Thrust, Torque]
+    action_dim = env.action_space.shape[0]  # [Thrust, Torque]
 
-    # Instantiate On-Policy Buffer and PPO Core Agent
+    # Instantiate Buffer and PPO Core Agent
     memory = PPOMemory()
     agent = PPOAgent(
         state_dim=stacked_state_dim,
@@ -52,7 +53,7 @@ def train_ppo(checkpoint_to_load=None):
     start_episode = 1
     rewards_history = []
 
-    # Handle Resuming / Phase Shifts
+    # Handle Resuming Checkpoints / Phase Changes
     if checkpoint_to_load is not None:
         print(f"Loading weights from checkpoint: {checkpoint_to_load}")
         checkpoint = torch.load(
@@ -61,25 +62,24 @@ def train_ppo(checkpoint_to_load=None):
         agent.policy_old.load_state_dict(checkpoint["policy_state_dict"])
         start_episode = checkpoint.get("episode", start_episode) + 1
 
-        # Pull past historical arrays safely if they exist
+        # Pull past historical tracking arrays safely if they exist
         history_path = os.path.join(save_dir, "rewards_history_ppo.npy")
         if os.path.exists(history_path):
             rewards_history = list(np.load(history_path))
             print(
-                f"-> Successfully imported {len(rewards_history)} steps of past history.")
+                f"-> Successfully imported {len(rewards_history)} episodes of past history.")
 
-        # If loading from episode 1000+, dynamically trigger Phase 2 (8 Obstacles)
+        # Handle Phase 2 environment adjustment if checkpoint is loaded post-episode 1000
         if start_episode > 1000:
             env = UAVLiDARContinuousEnv(n_obstacles=num_obstacles_phase2)
             print(
                 f"-> Curriculum Phase 2 Activated: {num_obstacles_phase2} obstacles initialized.")
 
-    # timestep = 0
     print(f"\nStarting PPO Training at Episode: {start_episode}")
     print(f"Initial Obstacle Count: {env.n_obstacles}\n")
 
     for episode in range(start_episode, max_episodes + 1):
-        # Curriculum Trigger for Phase 2 if running completely from scratch
+        # Curriculum Trigger for Phase 2 when training completely from scratch
         if episode == 1001 and checkpoint_to_load is None:
             print("\n" + "="*50)
             print("  SWITCHING TO CURRICULUM PHASE 2: 8 DENSE OBSTACLES")
@@ -90,14 +90,14 @@ def train_ppo(checkpoint_to_load=None):
         frame_stack = deque([obs] * stack_size, maxlen=stack_size)
         state = np.concatenate(list(frame_stack), axis=0)
 
-        # Inside your train_ppo loop:
         episode_reward = 0
 
         while True:
+            # 1. Action selection via current stochastic policy distribution
             action, action_logprob, state_value = agent.select_action(state)
             next_obs, reward, terminated, truncated, info = env.step(action)
 
-            # Save step parameters to memory...
+            # 2. Append parameters directly into memory lists
             memory.states.append(state)
             memory.actions.append(action)
             memory.logprobs.append(action_logprob)
@@ -105,21 +105,23 @@ def train_ppo(checkpoint_to_load=None):
             memory.rewards.append(reward)
             memory.is_terminals.append(terminated)
 
-            # FIXED: Actually update the observation frame stack queue!
+            # 3. Slide the queue window forward to include new step observations
             frame_stack.append(next_obs)
             state = np.concatenate(list(frame_stack), axis=0)
 
             episode_reward += reward
 
+            # --- OPTIMIZATION STEP CRITERIA ---
+            # Run policy backpropagation on clean rectangular data matrices at 512 steps
+            if len(memory.states) >= rollout_horizon:
+                agent.update(memory)
+                memory.clear()
+
             if terminated or truncated:
                 rewards_history.append(episode_reward)
                 break
-        # --- NEW FIXED UPDATE POSITION ---
-        # Update the policy network at the END of every 4 complete episodes!
-        if episode % 4 == 0:
-            agent.update(memory)
-            memory.clear()
-        # Console Monitoring Diagnostics
+
+        # Console Progress Monitoring
         if episode % 10 == 0:
             print(
                 f"Ep {episode:04d} | Reward: {episode_reward:7.2f} | Goal: {info['reached_goal']} | Speed: {info['speed']:.2f} m/s")
@@ -134,7 +136,7 @@ def train_ppo(checkpoint_to_load=None):
                 'optimizer_state_dict': agent.optimizer.state_dict(),
             }, checkpoint_path)
 
-            # Save out history arrays matching Drive directories
+            # Save historical numpy progression track logs to Drive
             np.save(os.path.join(save_dir, "rewards_history_ppo.npy"),
                     np.array(rewards_history))
             print(
@@ -146,6 +148,3 @@ def train_ppo(checkpoint_to_load=None):
 if __name__ == "__main__":
     # Start pure Phase 1 from scratch
     train_ppo(checkpoint_to_load=None)
-
-    # Phase 2
-    train_ppo(checkpoint_to_load="/content/drive/MyDrive/drl-uav-navigation/outputs_ppo/checkpoints/ppo_episode_1000.pth")
