@@ -19,7 +19,7 @@ class PPONetwork(nn.Module):
             nn.Linear(128, action_dim)
         )
 
-        self.actor_logstd = nn.Parameter(torch.full((1, action_dim), -1.0))
+        self.actor_logstd = nn.Parameter(torch.full((1, action_dim), -1.5))
         self.critic = nn.Sequential(
             nn.Linear(256, 128),
             nn.ReLU(),
@@ -35,7 +35,7 @@ class PPONetwork(nn.Module):
         torque_mean = torch.tanh(mean[..., 1:2])     # Strict [-1.0, 1.0] bound
         bounded_mean = torch.cat([thrust_mean, torque_mean], dim=-1)
 
-        logstd = torch.clamp(self.actor_logstd, -2.0, 0.0)
+        logstd = torch.clamp(self.actor_logstd, -2.5, -0.5)
         std = torch.exp(logstd).expand_as(bounded_mean)
         value = self.critic(features)
 
