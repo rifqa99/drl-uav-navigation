@@ -2,7 +2,6 @@ import os
 import torch
 import numpy as np
 from collections import deque
-import datetime
 
 from env.uav_env_continuous import UAVLiDARContinuousEnv
 from agents.ppo_agent import PPOAgent
@@ -15,7 +14,7 @@ def train_ppo(checkpoint_to_load=None):
 
     # --- Hyperparameters ---
     max_episodes = 3000
-    update_timestep = 2000      # Update PPO policy every 2000 environment steps
+    # update_timestep = 2000      # Update PPO policy every 2000 environment steps
     lr = 3e-4
     gamma = 0.99
     K_epochs = 10               # Optimize code parameters for 10 epochs per batch
@@ -75,7 +74,7 @@ def train_ppo(checkpoint_to_load=None):
             print(
                 f"-> Curriculum Phase 2 Activated: {num_obstacles_phase2} obstacles initialized.")
 
-    timestep = 0
+    # timestep = 0
     print(f"\nStarting PPO Training at Episode: {start_episode}")
     print(f"Initial Obstacle Count: {env.n_obstacles}\n")
 
@@ -91,18 +90,14 @@ def train_ppo(checkpoint_to_load=None):
         frame_stack = deque([obs] * stack_size, maxlen=stack_size)
         state = np.concatenate(list(frame_stack), axis=0)
 
+        # Inside your train_ppo loop:
         episode_reward = 0
 
         while True:
-            timestep += 1
-
-            # Select action from Gaussian distribution policy
             action, action_logprob, state_value = agent.select_action(state)
-
-            # Step environment forward
             next_obs, reward, terminated, truncated, info = env.step(action)
 
-            # Save step metrics into on-policy memory buffer
+            # Save step parameters to memory...
             memory.states.append(state)
             memory.actions.append(action)
             memory.logprobs.append(action_logprob)
@@ -110,20 +105,20 @@ def train_ppo(checkpoint_to_load=None):
             memory.rewards.append(reward)
             memory.is_terminals.append(terminated)
 
+            # FIXED: Actually update the observation frame stack queue!
             frame_stack.append(next_obs)
             state = np.concatenate(list(frame_stack), axis=0)
 
             episode_reward += reward
 
-            # Trigger optimization loop update once step horizon threshold is met
-            if timestep % update_timestep == 0:
-                agent.update(memory)
-                memory.clear()
-
             if terminated or truncated:
                 rewards_history.append(episode_reward)
                 break
-
+        # --- NEW FIXED UPDATE POSITION ---
+        # Update the policy network at the END of every 4 complete episodes!
+        if episode % 4 == 0:
+            agent.update(memory)
+            memory.clear()
         # Console Monitoring Diagnostics
         if episode % 10 == 0:
             print(
@@ -151,3 +146,6 @@ def train_ppo(checkpoint_to_load=None):
 if __name__ == "__main__":
     # Start pure Phase 1 from scratch
     train_ppo(checkpoint_to_load=None)
+
+    # Phase 2
+    train_ppo(checkpoint_to_load="/content/drive/MyDrive/drl-uav-navigation/outputs_ppo/checkpoints/ppo_episode_1000.pth")

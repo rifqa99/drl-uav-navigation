@@ -57,7 +57,7 @@ class ActorCritic(nn.Module):
 
 
 class PPOAgent:
-    def __init__(self, state_dim, action_dim, lr=3e-4, gamma=0.99, K_epochs=10, eps_clip=0.2, device="cuda"):
+    def __init__(self, state_dim, action_dim, lr=1e-4, gamma=0.99, K_epochs=10, eps_clip=0.2, device="cuda"):
         self.device = torch.device(
             device if torch.cuda.is_available() else "cpu")
         self.gamma = gamma
