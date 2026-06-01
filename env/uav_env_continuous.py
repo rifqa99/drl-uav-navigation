@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from env.dynamics_continuous import AdvancedUAVDynamicsContinuous
-from env.rewards import UAVRewardShapingContinuous
+from env.rewards_continuous import UAVRewardShapingContinuous
 
 try:
     import gymnasium as gym
