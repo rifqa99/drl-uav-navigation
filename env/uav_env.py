@@ -129,12 +129,12 @@ class UAVLiDAREnv(gym.Env if gym is not None else object):
             prev_action=self.prev_action,
             lidar_readings=self._lidar_scan(),
             distance=distance,
+            speed=float(speed),
+            max_speed=self.max_speed,
             collision=collision,
             reached_goal=reached_goal
         )
-
         # --- RE-ESTABLISH METRICS FOR INFO LOGGING ---
-        # Matching the exact evaluation math inside env/rewards.py
         energy_use = 1.0 if action in [1, 2] else (
             0.2 if action in [3, 4] else 0.0)
         smoothness_penalty = 1.0 if action != self.prev_action else 0.0
