@@ -5,41 +5,40 @@ class UAVRewardShapingContinuous:
     def __init__(self, world_size=10.0):
         self.world_size = world_size
 
-    def compute_reward(self, progress, current_action, prev_action, lidar_readings,
-                       distance, speed, max_speed, collision, reached_goal):
-
-        # 1. Terminal Penalties & Rewards (Identical to DQN values)
+    def compute_reward(
+        self,
+        progress,
+        current_action,
+        prev_action,
+        lidar_readings,
+        distance,
+        speed,
+        max_speed,
+        collision,
+        reached_goal,
+    ):
+        # 1. Terminal objectives
         if collision:
-            return -100.0
+            return -300.0
 
         if reached_goal:
-            # Safe low-velocity arrival landing reward tracking
-            speed_penalty = 50.0 * (speed / max_speed)
-            return 500.0 - speed_penalty
+            return 1000.0
 
-        # 2. Potential-Based Progress Reward
-        reward = progress * 100.0
+        # 2. Progress toward goal
+        reward = 5.0 * progress
 
-        # 3. Time-Step Efficiency Penalty
-        reward -= 0.05
+        # 3. Small time penalty
+        reward -= 0.005
 
-        # 4. Continuous Actuation & Energy Scaling
-        # current_action is [thrust, torque]
-        thrust_cmd = float(current_action[0])
-        torque_cmd = float(current_action[1])
+        # 4. Energy penalty for continuous control
+        current_action = np.asarray(current_action, dtype=np.float32)
+        action_energy = float(np.sum(current_action ** 2))
+        reward -= 0.01 * action_energy
 
-        # Energy scales naturally with throttle intensity
-        energy_use = thrust_cmd * 1.0
-        reward -= (0.05 * energy_use)
-
-        # Smoothness penalty based on vector distance delta
-        smoothness_penalty = float(
-            np.linalg.norm(current_action - prev_action))
-        reward -= (0.02 * smoothness_penalty)
-
-        # 5. Proximity Avoidance Safety Margin
+        # 5. Obstacle proximity penalty
         min_lidar = float(np.min(lidar_readings))
-        if min_lidar < 0.25:  # Critical danger zone radius threshold
-            reward -= 0.2 * (1.0 - min_lidar)
+
+        if min_lidar < 0.25:
+            reward -= 2.0 * (0.25 - min_lidar)
 
         return float(reward)
