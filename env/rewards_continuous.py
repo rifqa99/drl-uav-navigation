@@ -25,6 +25,9 @@ class UAVRewardShapingContinuous:
 
         reward = 10.0 * progress
 
+        # Global goal-direction signal
+        reward += 2.0 * (1.0 - distance / self.world_size)
+
         reward -= 0.01
 
         current_action = np.asarray(current_action, dtype=np.float32)
@@ -32,11 +35,7 @@ class UAVRewardShapingContinuous:
         reward -= 0.005 * action_energy
 
         min_lidar = float(np.min(lidar_readings))
-
         if min_lidar < 0.30:
             reward -= 1.0 * (0.30 - min_lidar)
-
-        if distance < 1.0:
-            reward += 1.0 * (1.0 - distance)
 
         return float(reward)
