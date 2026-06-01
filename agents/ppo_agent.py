@@ -5,7 +5,6 @@ import torch.optim as optim
 from torch.distributions import Normal
 import numpy as np
 
-# --- NEW IMPORT LAYER FROM YOUR MODELS DIRECTORY ---
 from models.ppo_network import PPONetwork
 
 
@@ -17,7 +16,6 @@ class PPOAgent:
         self.eps_clip = eps_clip
         self.K_epochs = K_epochs
 
-        # Point directly to your newly created model file classes
         self.policy = PPONetwork(state_dim, action_dim).to(self.device)
         self.optimizer = optim.Adam(self.policy.parameters(), lr=lr)
         self.policy_old = PPONetwork(state_dim, action_dim).to(self.device)
@@ -32,18 +30,19 @@ class PPOAgent:
             mean, std, value = self.policy_old(state_tensor)
 
         if evaluate:
+            # Deterministic execution during evaluation
             return mean.cpu().data.numpy().flatten(), 0.0, 0.0
 
+        # --- FIXED: Compute logprob directly on the true unclipped distribution ---
         dist = Normal(mean, std)
-        action = dist.sample()
-        action_logprob = dist.log_prob(action).sum(dim=-1)
+        raw_action = dist.sample()
+        action_logprob = dist.log_prob(raw_action).sum(dim=-1)
 
-        return (
-            np.clip(action.cpu().data.numpy().flatten(),
-                    [0.0, -1.0], [1.0, 1.0]),
-            action_logprob.item(),
-            value.item()
-        )
+        # Actions are already gracefully squashed via Tanh/Sigmoid inside PPONetwork!
+        # No more np.clip here breaking log probability alignments.
+        action = raw_action.cpu().data.numpy().flatten()
+
+        return action, action_logprob.item(), value.item()
 
     def update(self, memory):
         old_states = torch.FloatTensor(np.array(memory.states)).to(self.device)
@@ -55,6 +54,7 @@ class PPOAgent:
         rewards = memory.rewards
         is_terminals = memory.is_terminals
 
+        # --- FIXED: Return Normalization to stabilize Value Loss ---
         returns = []
         discounted_reward = 0
         for reward, is_terminal in zip(reversed(rewards), reversed(is_terminals)):
@@ -64,6 +64,10 @@ class PPOAgent:
             returns.insert(0, discounted_reward)
 
         returns = torch.FloatTensor(returns).to(self.device)
+        # Normalize target returns so the critic doesn't explode learning massive raw numbers
+        normalized_returns = (returns - returns.mean()) / \
+            (returns.std() + 1e-7)
+
         advantages = returns - old_values
         advantages = (advantages - advantages.mean()) / \
             (advantages.std() + 1e-7)
@@ -80,9 +84,10 @@ class PPOAgent:
             surr2 = torch.clamp(ratios, 1.0 - self.eps_clip,
                                 1.0 + self.eps_clip) * advantages
 
+            # Critic loss tracks normalized targets now
             loss = (
                 -torch.min(surr1, surr2) +
-                0.5 * self.MseLoss(values.squeeze(), returns) -
+                0.5 * self.MseLoss(values.squeeze(), normalized_returns) -
                 0.01 * entropy
             )
 

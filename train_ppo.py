@@ -93,26 +93,24 @@ def train_ppo(checkpoint_to_load=None):
         episode_reward = 0
 
         while True:
-            # 1. Action selection via current stochastic policy distribution
             action, action_logprob, state_value = agent.select_action(state)
             next_obs, reward, terminated, truncated, info = env.step(action)
 
-            # 2. Append parameters directly into memory lists
+            # --- FIXED: Store true 'done' state flag containing timeouts ---
+            done = terminated or truncated
+
             memory.states.append(state)
             memory.actions.append(action)
             memory.logprobs.append(action_logprob)
             memory.values.append(state_value)
             memory.rewards.append(reward)
-            memory.is_terminals.append(terminated)
+            # Appending done instead of terminated
+            memory.is_terminals.append(done)
 
-            # 3. Slide the queue window forward to include new step observations
             frame_stack.append(next_obs)
             state = np.concatenate(list(frame_stack), axis=0)
-
             episode_reward += reward
 
-            # --- OPTIMIZATION STEP CRITERIA ---
-            # Run policy backpropagation on clean rectangular data matrices at 512 steps
             if len(memory.states) >= rollout_horizon:
                 agent.update(memory)
                 memory.clear()
