@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 
 from env.uav_env import UAVLiDAREnv
-from agents.dqn_agent import duelingDQNAgent
+from agents.dueling_dqn import DuelingDQN
 
 
 def animate():
@@ -19,7 +19,7 @@ def animate():
     state_dim = env.observation_space.shape[0]
     action_dim = env.action_space.n
 
-    agent = duelingDQNAgent(state_dim, action_dim, device=device)
+    agent = DuelingDQN(state_dim, action_dim)
 
     checkpoint = torch.load(
         "outputs/checkpoints/dqn_episode_1300.pth",

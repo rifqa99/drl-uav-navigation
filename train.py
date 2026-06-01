@@ -151,7 +151,7 @@ def train(checkpoint_to_load=None):
 
 if __name__ == "__main__":
     # --- PHASE 1: RUN FIRST FROM SCRATCH ---
-    train(checkpoint_to_load=None)
+    # train(checkpoint_to_load=None)
 
     # --- PHASE 2: RESUME LATER (Comment out Phase 1 above and use this line instead) ---
-    # train(checkpoint_to_load="/content/drive/MyDrive/drl-uav-navigation/outputs/checkpoints/dqn_episode_1000.pth")
+    train(checkpoint_to_load="/content/drive/MyDrive/drl-uav-navigation/outputs/checkpoints/dqn_episode_1000.pth")

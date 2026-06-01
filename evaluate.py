@@ -10,7 +10,7 @@ def evaluate():
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print("Device:", device)
 
-    checkpoint_path = "outputs/checkpoints/dqn_episode_400.pth"
+    checkpoint_path = "outputs/checkpoints/dqn_episode_1300.pth"
 
     env = UAVLiDAREnv(
         seed=123,
