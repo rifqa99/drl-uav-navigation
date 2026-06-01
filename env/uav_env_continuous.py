@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from env.dynamics_continuous import AdvancedUAVDynamicsContinuous
-from env.rewards import UAVRewardShaping
+from env.rewards import UAVRewardShapingContinuous
 
 try:
     import gymnasium as gym
@@ -48,7 +48,8 @@ class UAVLiDARContinuousEnv(gym.Env if gym is not None else object):
 
         # Physics & Reward Modules
         self.dynamics = AdvancedUAVDynamicsContinuous()
-        self.reward_shaper = UAVRewardShaping(world_size=self.world_size)
+        self.reward_shaper = UAVRewardShapingContinuous(
+            world_size=self.world_size)
 
         self.theta = 0.0
         self.omega = 0.0
