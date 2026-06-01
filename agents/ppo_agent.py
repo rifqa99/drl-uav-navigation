@@ -9,7 +9,7 @@ from models.ppo_network import PPONetwork
 
 
 class PPOAgent:
-    def __init__(self, state_dim, action_dim, lr=3e-4, gamma=0.99, K_epochs=10, eps_clip=0.2, device="cuda"):
+    def __init__(self, state_dim, action_dim, lr=1e-4, gamma=0.99, K_epochs=10, eps_clip=0.2, device="cuda"):
         self.device = torch.device(
             device if torch.cuda.is_available() else "cpu")
         self.gamma = gamma
@@ -30,19 +30,26 @@ class PPOAgent:
             mean, std, value = self.policy_old(state_tensor)
 
         if evaluate:
-            # Deterministic execution during evaluation
-            return mean.cpu().data.numpy().flatten(), 0.0, 0.0
+            # During evaluation, map the pure deterministic mean vector smoothly
+            raw_mean = mean.cpu().data.numpy().flatten()
+            thrust = 1.0 / (1.0 + np.exp(-raw_mean[0]))  # Sigmoid bounding
+            torque = np.tanh(raw_mean[1])                # Tanh bounding
+            return np.array([thrust, torque], dtype=np.float32), 0.0, 0.0
 
-        # --- FIXED: Compute logprob directly on the true unclipped distribution ---
         dist = Normal(mean, std)
         raw_action = dist.sample()
         action_logprob = dist.log_prob(raw_action).sum(dim=-1)
 
-        # Actions are already gracefully squashed via Tanh/Sigmoid inside PPONetwork!
-        # No more np.clip here breaking log probability alignments.
-        action = raw_action.cpu().data.numpy().flatten()
+        # --- FIXED: Apply bounded activations to the sampled array elements ---
+        raw_act_np = raw_action.cpu().data.numpy().flatten()
+        # Sigmoid maps to [0.0, 1.0]
+        thrust = 1.0 / (1.0 + np.exp(-raw_act_np[0]))
+        # Tanh maps to [-1.0, 1.0]
+        torque = np.tanh(raw_act_np[1])
 
-        return action, action_logprob.item(), value.item()
+        bounded_action = np.array([thrust, torque], dtype=np.float32)
+
+        return bounded_action, action_logprob.item(), value.item()
 
     def update(self, memory):
         old_states = torch.FloatTensor(np.array(memory.states)).to(self.device)
@@ -54,7 +61,6 @@ class PPOAgent:
         rewards = memory.rewards
         is_terminals = memory.is_terminals
 
-        # --- FIXED: Return Normalization to stabilize Value Loss ---
         returns = []
         discounted_reward = 0
         for reward, is_terminal in zip(reversed(rewards), reversed(is_terminals)):
@@ -64,7 +70,6 @@ class PPOAgent:
             returns.insert(0, discounted_reward)
 
         returns = torch.FloatTensor(returns).to(self.device)
-        # Normalize target returns so the critic doesn't explode learning massive raw numbers
         normalized_returns = (returns - returns.mean()) / \
             (returns.std() + 1e-7)
 
@@ -84,7 +89,6 @@ class PPOAgent:
             surr2 = torch.clamp(ratios, 1.0 - self.eps_clip,
                                 1.0 + self.eps_clip) * advantages
 
-            # Critic loss tracks normalized targets now
             loss = (
                 -torch.min(surr1, surr2) +
                 0.5 * self.MseLoss(values.squeeze(), normalized_returns) -

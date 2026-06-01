@@ -19,7 +19,8 @@ class PPONetwork(nn.Module):
             nn.Linear(128, action_dim)
         )
 
-        self.actor_logstd = nn.Parameter(torch.full((1, action_dim), -1.5))
+        self.actor_logstd = nn.Parameter(torch.zeros(1, action_dim))
+
         self.critic = nn.Sequential(
             nn.Linear(256, 128),
             nn.ReLU(),
@@ -28,15 +29,10 @@ class PPONetwork(nn.Module):
 
     def forward(self, state):
         features = self.feature_extractor(state)
+
+        # Output raw, unconstrained mean values on the real number line
         mean = self.actor_mean(features)
-
-        # Graceful continuous activation capping mappings
-        thrust_mean = torch.sigmoid(mean[..., 0:1])  # Strict [0.0, 1.0] bound
-        torque_mean = torch.tanh(mean[..., 1:2])     # Strict [-1.0, 1.0] bound
-        bounded_mean = torch.cat([thrust_mean, torque_mean], dim=-1)
-
-        logstd = torch.clamp(self.actor_logstd, -2.5, -0.5)
-        std = torch.exp(logstd).expand_as(bounded_mean)
+        std = torch.exp(self.actor_logstd)
         value = self.critic(features)
 
-        return bounded_mean, std, value
+        return mean, std, value
