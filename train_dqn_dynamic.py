@@ -48,7 +48,7 @@ def train_dqn_dynamic():
     success_window = deque(maxlen=100)
 
     print(
-        f"Starting Dynamic Obstacle DQN Training across {episodes} episodes...")
+        f"Starting Dynamic {env.n_obstacles} Obstacle DQN Training across {episodes} episodes...")
 
     for episode in tqdm(range(1, episodes + 1)):
         obs, _ = env.reset()
