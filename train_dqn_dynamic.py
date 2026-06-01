@@ -29,7 +29,7 @@ def train_dqn_dynamic():
     os.makedirs(checkpoint_dir, exist_ok=True)
 
     # Initialize environment with 8 moving hazards
-    env = UAVLiDARDynamicEnv(n_obstacles=8)
+    env = UAVLiDARDynamicEnv(n_obstacles=2)
 
     state_dim = env.observation_space.shape[0] * stack_size
     action_dim = env.action_space.n
