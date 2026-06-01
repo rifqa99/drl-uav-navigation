@@ -19,11 +19,12 @@ def train(checkpoint_to_load=None):
 
     stack_size = 3
 
-    # 1. FIXED: Set your ultimate final total target here (e.g., 3000 episodes)
+    # Set your ultimate maximum target here (e.g., 3000 episodes total)
     episodes = 3000
     batch_size = 64
     target_update_freq = 10
 
+    # Curriculum adjustment
     num_obstacles_current = 2 if checkpoint_to_load is None else 8
 
     env = UAVLiDAREnv(
@@ -42,18 +43,20 @@ def train(checkpoint_to_load=None):
         action_dim=env.action_space.n,
         lr=1e-3,
         gamma=0.99,
-        epsilon=1.0 if checkpoint_to_load is None else 0.2,
+        # Higher exploration for Phase 2!
+        epsilon=1.0 if checkpoint_to_load is None else 0.40,
         epsilon_decay=0.998,
         epsilon_min=0.05,
         device=device,
     )
 
-    # 2. FIXED: Core variables initialization sequence
+    # Core tracking variables initialization sequence
     start_episode = 1
-    rewards_history = []  # Will be preserved or loaded from Drive below
+    rewards_history = []
 
     print(f"\n Number of obstacles initialized: {env.n_obstacles}")
 
+    # --- SAFE LOAD & APPEND RESUME LOGIC ---
     if checkpoint_to_load is not None:
         print(f"Loading weights from checkpoint: {checkpoint_to_load}")
         checkpoint = torch.load(
@@ -61,18 +64,19 @@ def train(checkpoint_to_load=None):
         agent.q_network.load_state_dict(checkpoint["q_network"])
         agent.target_network.load_state_dict(checkpoint["q_network"])
 
-        agent.epsilon = checkpoint.get("epsilon", 0.2)
+        agent.epsilon = checkpoint.get("epsilon", 0.40)
         start_episode = checkpoint.get("episode", 1) + 1
         print(f"Resuming training directly from Episode: {start_episode}")
 
-        # --- NEW: LOAD PAST HISTORY ARRAY FROM DRIVE ---
+        # LOAD PAST HISTORY FROM DRIVE INSTEAD OF WIPING IT
         drive_history_path = "/content/drive/MyDrive/drl-uav-navigation/outputs/rewards_history.npy"
         if os.path.exists(drive_history_path):
             rewards_history = list(np.load(drive_history_path))
             print(
-                f"Successfully loaded {len(rewards_history)} steps of past reward history from Drive!")
+                f"-> Successfully imported {len(rewards_history)} steps of genuine past history array!")
         else:
-            print("Warning: Checkpoint loaded, but no previous rewards_history.npy found on Drive. Starting history fresh.")
+            print(
+                "Warning: Checkpoint specified but rewards_history.npy missing from Drive path.")
 
     replay_buffer = ReplayBuffer(capacity=100000)
 
@@ -114,7 +118,7 @@ def train(checkpoint_to_load=None):
 
         avg_loss = total_loss / loss_count if loss_count > 0 else 0.0
 
-        # Append latest metrics to your tracking list
+        # Append latest metric to the ongoing continuous list
         rewards_history.append(total_reward)
 
         if episode % 10 == 0:
@@ -124,7 +128,7 @@ def train(checkpoint_to_load=None):
                 f"Goal: {info['reached_goal']}"
             )
 
-        # --- FIXED: SAVE BOTH WEIGHTS AND ACCUMULATED LOGS TO DRIVE EVERY 100 EPISODES ---
+        # SAVE EVERYTHING INCREMENTALLY TO DRIVE SAFELY EVERY 100 EPISODES
         if episode % 100 == 0:
             checkpoint_path = f"/content/drive/MyDrive/drl-uav-navigation/outputs/checkpoints/dqn_episode_{episode}.pth"
             torch.save({
@@ -133,23 +137,21 @@ def train(checkpoint_to_load=None):
                 "epsilon": agent.epsilon,
             }, checkpoint_path)
 
-            # Save history incrementally so it's always safe on your Drive
+            # Safely dumps the combined list (Past history + New episodes)
             np.save("/content/drive/MyDrive/drl-uav-navigation/outputs/rewards_history.npy",
                     np.array(rewards_history))
             print(
-                f"-> Saved Checkpoint {episode} and complete reward history up to Drive.")
+                f"-> Saved Checkpoint {episode} and appended complete reward history up to Drive.")
 
-    # Final backup save when entire pipeline wraps up completely
+    # Final protection save when entire loop wraps up completely
     np.save("/content/drive/MyDrive/drl-uav-navigation/outputs/rewards_history.npy",
             np.array(rewards_history))
     print("Training finished successfully. Final history file secured on Google Drive!")
 
 
 if __name__ == "__main__":
-    # CRITICAL: Since you are changing environment dimensions (adding theta/omega),
-    # remember that you cannot load your old pre-fix episode 500 weights.
-    # Start fresh here to build a completely stable, fully compatible (207, 5) shape baseline!
+    # --- PHASE 1: RUN FIRST FROM SCRATCH ---
     train(checkpoint_to_load=None)
 
-    # Future Use (Once your new run saves fresh compatible checkpoints):
-    # train(checkpoint_to_load="/content/drive/MyDrive/drl-uav-navigation/outputs/checkpoints/dqn_episode_1500.pth")
+    # --- PHASE 2: RESUME LATER (Comment out Phase 1 above and use this line instead) ---
+    # train(checkpoint_to_load="/content/drive/MyDrive/drl-uav-navigation/outputs/checkpoints/dqn_episode_1000.pth")
