@@ -149,7 +149,7 @@ if __name__ == "__main__":
     # CRITICAL: Since you are changing environment dimensions (adding theta/omega),
     # remember that you cannot load your old pre-fix episode 500 weights.
     # Start fresh here to build a completely stable, fully compatible (207, 5) shape baseline!
-    # train(checkpoint_to_load=None)
+    train(checkpoint_to_load=None)
 
     # Future Use (Once your new run saves fresh compatible checkpoints):
-    train(checkpoint_to_load="/content/drive/MyDrive/drl-uav-navigation/outputs/checkpoints/dqn_episode_1500.pth")
+    # train(checkpoint_to_load="/content/drive/MyDrive/drl-uav-navigation/outputs/checkpoints/dqn_episode_1500.pth")

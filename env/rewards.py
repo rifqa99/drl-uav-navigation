@@ -38,6 +38,8 @@ class UAVRewardShaping:
             reward -= 100.0
 
         if reached_goal:
-            reward += 500.0
+            # Penalize high arrival speeds to ensure a gentle landing
+            speed_penalty = 50.0 * (speed / max_speed)
+            reward += (500.0 - speed_penalty)
 
         return reward
