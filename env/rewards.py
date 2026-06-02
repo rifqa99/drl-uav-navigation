@@ -103,11 +103,14 @@ class UAVRewardShaping:
         # 2. Angular Velocity Dampener (Anti-Spinning Fix)
         if action_idx in [3, 4]:
             reward -= 0.05  # Slight energy penalty for turning on the spot
-            
-        # 3. Risk-Aware LiDAR Safety Envelope (Anti-Collision Fix)
+            # ---------------------------------------------------------
+        # 3. Risk-Aware LiDAR Safety Envelope (Fixes the Crashing)
+        # ---------------------------------------------------------
         lidar_readings = info.get('raw_lidar', None) 
         if lidar_readings is not None and len(lidar_readings) > 0:
-            min_lidar = np.min(lidar_readings)
+            # FORCE ABSOLUTE VALUES to eliminate negative coordinate noise
+            clean_distances = np.abs(lidar_readings)
+            min_lidar = np.min(clean_distances)
             
             # Danger-zone boundary breach threshold set at 0.25 meters
             if min_lidar < 0.25:
