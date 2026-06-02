@@ -53,74 +53,53 @@
 # The new reward shaping function is designed to fix the issue of spinning ın addition to risk-awareness to decrease the chances of collision. The reward is calculated based on the following components:
 import numpy as np
 
+
 class UAVRewardShaping:
-    def __init__(self, world_size):
+    def __init__(self, world_size=10.0, safety_distance=0.25):
         self.world_size = world_size
+        self.safety_distance = safety_distance
 
-    def compute_reward(self, *args, **kwargs):
-        """
-        Robust, type-checked reward hook.
-        Properly differentiates between old environment positional steps
-        and new explicit training loop dictionary calls.
-        """
-        info = {}
-        action_idx = 0
+    def compute_reward(
+        self,
+        progress,
+        action,
+        lidar_readings,
+        collision,
+        reached_goal
+    ):
 
-        # Check if the first positional argument is an explicit dictionary (Our New Loop)
-        if len(args) > 0 and isinstance(args[0], dict):
-            info = args[0]
-            action_idx = kwargs.get('action_idx', args[1] if len(args) > 1 else 0)
-            
-        # Check if called via explicit old keywords (Our Old Env)
-        elif 'progress' in kwargs:
-            info = {
-                'progress': kwargs.get('progress', 0.0),
-                'raw_lidar': kwargs.get('lidar_readings', None),
-                'collision': kwargs.get('collision', False),
-                'reached_goal': kwargs.get('reached_goal', False)
-            }
-            action_idx = kwargs.get('current_action', 0)
-            
-        # Fallback: Environment is passing old raw positional variables (progress, current_action, ...)
-        elif len(args) > 1:
-            info = {
-                'progress': args[0],
-                'raw_lidar': args[3] if len(args) > 3 else None,
-                'collision': args[6] if len(args) > 6 else False,
-                'reached_goal': args[7] if len(args) > 7 else False
-            }
-            action_idx = args[1]
+        if collision:
+            return -1000.0
 
-        # ---------------------------------------------------------
-        # NEW CORE LOGIC: Risk-Aware + Anti-Spinning
-        # ---------------------------------------------------------
+        if reached_goal:
+            return 1000.0
+
         reward = 0.0
-        
-        # 1. Standard Performance Metrics
-        reward += 5.0 * float(info.get('progress', 0.0))
-        reward -= 0.005  # Decisiveness Time Penalty
-        
-        # 2. Angular Velocity Dampener (Anti-Spinning Fix)
-        if action_idx in [3, 4]:
-            reward -= 0.05  # Slight energy penalty for turning on the spot
-            # ---------------------------------------------------------
-        # 3. Risk-Aware LiDAR Safety Envelope (Fixes the Crashing)
-        # ---------------------------------------------------------
-        lidar_readings = info.get('raw_lidar', None) 
+
+        # Goal progress
+        reward += 5.0 * float(progress)
+
+        # Time penalty
+        reward -= 0.005
+
+        # Anti-spinning
+        if action in [3, 4]:
+            reward -= 0.05
+
+        # Safety envelope in REAL METERS
         if lidar_readings is not None and len(lidar_readings) > 0:
-            # FORCE ABSOLUTE VALUES to eliminate negative coordinate noise
-            clean_distances = np.abs(lidar_readings)
-            min_lidar = np.min(clean_distances)
-            
-            # Danger-zone boundary breach threshold set at 0.25 meters
-            if min_lidar < 0.25:
-                risk_penalty = 2.0 * (0.25 - min_lidar)
-                reward -= risk_penalty
-                
-        # 4. Terminal State Modifiers
-        if info.get('reached_goal', False):
-            reward += 1000.0
-        elif info.get('collision', False):
-            reward -= 1000.0
-            
+
+            min_lidar_m = (
+                float(np.min(lidar_readings))
+                * self.world_size
+            )
+            if min_lidar_m < 1.0:
+                reward -= 0.5
+
+            if min_lidar_m < 0.5:
+                reward -= 2.0
+
+            if min_lidar_m < 0.25:
+                reward -= 10.0
+
         return float(reward)
