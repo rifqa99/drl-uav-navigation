@@ -1,9 +1,9 @@
 import numpy as np
 
-
 class UAVRewardShaping:
     def __init__(self, world_size):
         self.world_size = world_size
+
 
 #     def compute_reward(
 #         self,
@@ -53,52 +53,59 @@ class UAVRewardShaping:
 # The new reward shaping function is designed to fix the issue of spinning ın addition to risk-awareness to decrease the chances of collision. The reward is calculated based on the following components:
 
 
-    def compute_reward(self, info, action_idx):
+    def compute_reward(self, *args, **kwargs):
         """
-        Advanced Multi-Objective Reward Function
-        Incorporates:
-        1. Distance Progress to Target
-        2. Decisiveness Time Penalty
-        3. Angular Velocity Dampener (Anti-Spinning Fix)
-        4. Risk-Aware LiDAR Safety Envelope (Anti-Collision Fix)
+        Dual-compatible reward hook. 
+        Handles old environment keyword calls and reroutes them to our new 
+        Risk-Aware + Anti-Spinning optimization layout.
         """
+        # If the environment calls it using the old keyword arguments, bundle them into an 'info' dict
+        if 'progress' in kwargs or len(args) > 0:
+            # Fallbacks to extract values based on your old signature
+            progress = kwargs.get('progress', args[0] if len(args) > 0 else 0.0)
+            current_action = kwargs.get('current_action', args[1] if len(args) > 1 else 0)
+            lidar_readings = kwargs.get('lidar_readings', args[3] if len(args) > 3 else None)
+            collision = kwargs.get('collision', args[6] if len(args) > 6 else False)
+            reached_goal = kwargs.get('reached_goal', args[7] if len(args) > 7 else False)
+            
+            # Reconstruct the expected 'info' packet dynamically
+            info = {
+                'progress': progress,
+                'raw_lidar': lidar_readings,
+                'collision': collision,
+                'reached_goal': reached_goal
+            }
+            action_idx = current_action
+        else:
+            # If called directly from the new training loop using (info, action_idx)
+            info = args[0] if len(args) > 0 else kwargs.get('info', {})
+            action_idx = args[1] if len(args) > 1 else kwargs.get('action_idx', 0)
+
+        # ---------------------------------------------------------
+        # NEW CORE LOGIC: Risk-Aware + Anti-Spinning
+        # ---------------------------------------------------------
         reward = 0.0
         
-        # ---------------------------------------------------------
         # 1. Standard Performance Metrics
-        # ---------------------------------------------------------
-        # Distance progress step
         reward += 5.0 * info.get('progress', 0.0)
+        reward -= 0.005  # Decisiveness Time Penalty
         
-        # Decisiveness Time Penalty (Anti-Stalling)
-        reward -= 0.005
-        
-        # ---------------------------------------------------------
         # 2. Angular Velocity Dampener (Fixes the Spinning)
-        # ---------------------------------------------------------
-        # Assuming action space mapping: 3 = Turn Left, 4 = Turn Right
-        # Adjust action indices if your mapping differs!
+        # Action space mapping: 3 = Turn Left, 4 = Turn Right
         if action_idx in [3, 4]:
-            reward -= 0.05  # Slight energy penalty for spinning on the spot
+            reward -= 0.05  # Slight energy penalty to prevent continuous spinning
             
-        # ---------------------------------------------------------
         # 3. Risk-Aware LiDAR Safety Envelope (Fixes the Crashing)
-        # ---------------------------------------------------------
-        # Extract structural raw array readings from your lidar observation state
-        # Assumes self.env.lidar_sensor_data or passed via observation matrix
         lidar_readings = info.get('raw_lidar', None) 
         if lidar_readings is not None and len(lidar_readings) > 0:
             min_lidar = np.min(lidar_readings)
             
-            # Danger-zone breach threshold set at 0.25 meters spatial boundary
+            # Danger-zone breach threshold set at 0.25 meters
             if min_lidar < 0.25:
-                # Linear scaling penalty: gets exponentially harsher the closer it gets
                 risk_penalty = 2.0 * (0.25 - min_lidar)
                 reward -= risk_penalty
                 
-        # ---------------------------------------------------------
         # 4. Terminal State Modifiers
-        # ---------------------------------------------------------
         if info.get('reached_goal', False):
             reward += 1000.0
         elif info.get('collision', False):
