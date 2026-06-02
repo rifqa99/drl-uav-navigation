@@ -7,13 +7,15 @@ from tqdm import tqdm
 from env.uav_env_dynamic import UAVLiDARDynamicEnv
 from agents.dqn_agent import DQNAgent
 from agents.replay_buffer import ReplayBuffer
+# Make sure this points to the exact file where your UAVRewardShaping class is saved
+from env.rewards import UAVRewardShaping 
 
 def train_dqn_dynamic_adaptive_colab(checkpoint_file=None):
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Device: {device}")
 
     # --- Hyperparameters ---
-    episodes = 6000  # Extended to give the agent room to progress past harder phases
+    episodes = 6000  
     batch_size = 64
     gamma = 0.99
     lr = 1e-4
@@ -21,19 +23,20 @@ def train_dqn_dynamic_adaptive_colab(checkpoint_file=None):
     buffer_capacity = 50000
     target_update_frequency = 10
 
-    # Point directly to your permanent Google Drive project paths
+    # Separate output directory to keep your baseline data protected
     save_dir = "/content/drive/MyDrive/drl-uav-navigation/outputs_dynamic_risk_aware"
     checkpoint_dir = os.path.join(save_dir, "checkpoints")
     os.makedirs(checkpoint_dir, exist_ok=True)
 
-    # Setup the baseline tracker
     current_obstacles = 2
     start_episode = 1
     rewards_history = []
     success_window = deque(maxlen=100)
 
-    # Initialize environment
+    # Initialize environment & your custom reward shaper
     env = UAVLiDARDynamicEnv(n_obstacles=current_obstacles)
+    reward_shaper = UAVRewardShaping(world_size=env.world_size)
+    
     state_dim = env.observation_space.shape[0] * stack_size
     action_dim = env.action_space.n
 
@@ -46,39 +49,35 @@ def train_dqn_dynamic_adaptive_colab(checkpoint_file=None):
         device=device
     )
 
-    # --- LOAD CHECKPOINT IF PROVIDED ---
+    # --- LOAD CHECKPOINT ---
     if checkpoint_file and os.path.exists(checkpoint_file):
         print(f"-> Loading weights from checkpoint: {checkpoint_file}")
         checkpoint = torch.load(checkpoint_file, map_location=device, weights_only=False)
         agent.q_network.load_state_dict(checkpoint["model_state_dict"])
         agent.target_network.load_state_dict(checkpoint["model_state_dict"])
         
-        # Resume cleanly at the correct episode count
         start_episode = checkpoint.get("episode", 2000) + 1
         current_obstacles = checkpoint.get("obstacles", 2)
         
-        # Update the active environment difficulty to match the checkpoint profile
         env = UAVLiDARDynamicEnv(n_obstacles=current_obstacles)
+        reward_shaper = UAVRewardShaping(world_size=env.world_size)
         
-        # Load past history tracking arrays if they exist
         history_path = os.path.join(save_dir, "rewards_history_dynamic.npy")
         if os.path.exists(history_path):
             rewards_history = list(np.load(history_path))
             print(f"-> Loaded {len(rewards_history)} episodes of past reward data.")
             
-        # Set epsilon to its lowest stable exploration level since the agent is trained
         agent.epsilon = agent.epsilon_min
     else:
         print("-> No active checkpoint loaded. Starting training sequence from scratch.")
 
-    print(f"\nStarting Adaptive Curriculum. Active Obstacles: {current_obstacles} | Resuming at Ep: {start_episode}\n")
+    print(f"\nStarting Risk-Aware Adaptive Curriculum. Active Obstacles: {current_obstacles} | Resuming at Ep: {start_episode}\n")
 
     for episode in tqdm(range(start_episode, episodes + 1)):
         # --- ADAPTIVE CURRICULUM CONTROLLER ---
         if len(success_window) >= 50:
             rolling_sr = sum(success_window) / len(success_window)
             
-            # Upgrade obstacle counts if the agent passes the 70% threshold
             if rolling_sr >= 0.70 and current_obstacles < 8:
                 current_obstacles += 2
                 print(f"\n" + "="*60)
@@ -87,7 +86,8 @@ def train_dqn_dynamic_adaptive_colab(checkpoint_file=None):
                 print("="*60 + "\n")
                 
                 env = UAVLiDARDynamicEnv(n_obstacles=current_obstacles)
-                success_window.clear()  # Empty window to force a clean test profile
+                reward_shaper = UAVRewardShaping(world_size=env.world_size)
+                success_window.clear()  
 
         obs, _ = env.reset()
         frame_stack = deque([obs] * stack_size, maxlen=stack_size)
@@ -97,16 +97,30 @@ def train_dqn_dynamic_adaptive_colab(checkpoint_file=None):
 
         while True:
             action = agent.select_action(state)
-            next_obs, reward, terminated, truncated, info = env.step(action)
+            
+            # 1. Run basic environment physical updates
+            next_obs, env_reward, terminated, truncated, info = env.step(action)
             done = terminated or truncated
+
+            # CRITICAL ENHANCEMENT: Inject raw LiDAR data to the info packet if missing
+            if 'raw_lidar' not in info:
+                info['raw_lidar'] = next_obs  # Using the active step vector fallback
+            
+            # Pass termination parameters into the dictionary packet explicitly
+            info['reached_goal'] = info.get('reached_goal', False) or (done and not info.get('collision', False))
+            info['collision'] = info.get('collision', False)
+
+            # 2. OVERRIDE reward calculation with your new synchronized logic
+            custom_reward = reward_shaper.compute_reward(info, action_idx=action)
 
             frame_stack.append(next_obs)
             next_state = np.concatenate(list(frame_stack), axis=0)
 
-            replay_buffer.push(state, action, reward, next_state, done)
+            # 3. Store the new risk-aware customized reward instead of env_reward
+            replay_buffer.push(state, action, custom_reward, next_state, done)
             
             state = next_state
-            episode_reward += reward
+            episode_reward += custom_reward
 
             if len(replay_buffer) > batch_size:
                 agent.train_step(replay_buffer, batch_size)
@@ -140,7 +154,6 @@ def train_dqn_dynamic_adaptive_colab(checkpoint_file=None):
     print("\nAdaptive Training Complete.")
 
 if __name__ == "__main__":
-    # Point directly to your episode 2000 weight path on your drive
+    # Make sure to place your baseline 2000 weight checkpoint inside the new risk_aware folder paths
     target_checkpoint = "/content/drive/MyDrive/drl-uav-navigation/outputs_dynamic_risk_aware/checkpoints/dqn_dynamic_2000.pth"
-    
     train_dqn_dynamic_adaptive_colab(checkpoint_file=target_checkpoint)
