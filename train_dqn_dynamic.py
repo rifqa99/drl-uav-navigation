@@ -4,10 +4,6 @@ import numpy as np
 from collections import deque
 from tqdm import tqdm
 
-# Mount Google Drive to access your saved weights
-from google.colab import drive
-drive.mount('/content/drive')
-
 from env.uav_env_dynamic import UAVLiDARDynamicEnv
 from agents.dqn_agent import DQNAgent
 from agents.replay_buffer import ReplayBuffer
