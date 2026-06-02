@@ -21,7 +21,7 @@ def train_dqn_dynamic_adaptive_colab(checkpoint_file=None):
     buffer_capacity = 50000
     target_update_frequency = 10
 
-    save_dir = "/content/drive/MyDrive/drl-uav-navigation/outputs_dynamic_risk_aware"
+    save_dir = "/content/drive/MyDrive/drl-uav-navigation/outputs_dynamic_risk_aware_new"
     checkpoint_dir = os.path.join(save_dir, "checkpoints")
     os.makedirs(checkpoint_dir, exist_ok=True)
 
@@ -73,12 +73,12 @@ def train_dqn_dynamic_adaptive_colab(checkpoint_file=None):
         env = UAVLiDARDynamicEnv(n_obstacles=current_obstacles)
 
         history_files = {
-            "rewards_history_dynamic.npy": rewards_history,
-            "loss_history_dynamic.npy": loss_history,
-            "success_history_dynamic.npy": success_history,
-            "obstacle_history_dynamic.npy": obstacle_history,
-            "min_proximity_history.npy": min_proximity_history,
-            "total_rotation_history.npy": total_rotation_history,
+            "rewards_history_dynamic_new.npy": rewards_history,
+            "loss_history_dynamic_new.npy": loss_history,
+            "success_history_dynamic_new.npy": success_history,
+            "obstacle_history_dynamic_new.npy": obstacle_history,
+            "min_proximity_history_new.npy": min_proximity_history,
+            "total_rotation_history_new.npy": total_rotation_history,
         }
 
         for filename, target_list in history_files.items():

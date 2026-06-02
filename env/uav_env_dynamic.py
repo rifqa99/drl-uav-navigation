@@ -144,45 +144,44 @@ class UAVLiDARDynamicEnv(gym.Env if gym is not None else object):
             new_center = np.clip(new_center, radius, self.world_size - radius)
             self.obstacles[i] = [new_center.astype(np.float32), radius]
 
-        distance = self._distance_to_goal()
-        progress = self.prev_distance - distance
-        self.prev_distance = distance
+            distance = self._distance_to_goal()
+            progress = self.prev_distance - distance
+            self.prev_distance = distance
 
-        lidar = self._lidar_scan()
+            lidar = self._lidar_scan()
+            speed = float(np.linalg.norm(self.vel))
 
-        collision = self._check_collision()
-        reached_goal = distance <= self.goal_radius
-        timeout = self.steps >= self.max_steps
+            collision = self._check_collision()
+            reached_goal = distance <= self.goal_radius
+            timeout = self.steps >= self.max_steps
 
-        reward = self.reward_shaper.compute_reward(
-            progress=progress,
-            action=action,
-            lidar_readings=lidar,
-            collision=collision,
-            reached_goal=reached_goal
-        )
+            reward = self.reward_shaper.compute_reward(
+                progress=progress,
+                action=action,
+                lidar_readings=lidar,
+                collision=collision,
+                reached_goal=reached_goal,
+                speed=speed,
+                omega=float(self.omega)
+            )
 
-        energy_use = 1.0 if action in [1, 2] else (0.2 if action in [3, 4] else 0.0)
-        smoothness_penalty = 1.0 if action != self.prev_action else 0.0
+            self.prev_action = action
 
-        self.prev_action = action
+            terminated = collision or reached_goal
+            truncated = timeout
 
-        terminated = collision or reached_goal
-        truncated = timeout
+            info = {
+                "progress": float(progress),
+                "distance_to_goal": float(distance),
+                "collision": bool(collision),
+                "reached_goal": bool(reached_goal),
+                "speed": speed,
+                "omega": float(self.omega),
+                "raw_lidar": lidar,
+                "min_lidar_distance": float(np.min(lidar)) * self.world_size,
+            }
 
-        info = {
-            "progress": float(progress),
-            "distance_to_goal": float(distance),
-            "collision": bool(collision),
-            "reached_goal": bool(reached_goal),
-            "speed": float(speed),
-            "energy_use": float(energy_use),
-            "smoothness_violation": float(smoothness_penalty),
-            "raw_lidar": lidar,
-            "min_lidar_distance": float(np.min(lidar)) * self.world_size,
-        }
-
-        return self._get_obs(), reward, terminated, truncated, info
+            return self._get_obs(), reward, terminated, truncated, info
 
 
     def _get_obs(self):
