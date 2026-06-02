@@ -1,8 +1,8 @@
-import numpy as np
+# import numpy as np
 
-class UAVRewardShaping:
-    def __init__(self, world_size):
-        self.world_size = world_size
+# class UAVRewardShaping:
+#     def __init__(self, world_size):
+#         self.world_size = world_size
 
 
 #     def compute_reward(
@@ -51,35 +51,45 @@ class UAVRewardShaping:
 #         return float(reward)
 ################## above ıs the old reward shaping code, which is now replaced by the new one below ##################
 # The new reward shaping function is designed to fix the issue of spinning ın addition to risk-awareness to decrease the chances of collision. The reward is calculated based on the following components:
+import numpy as np
 
+class UAVRewardShaping:
+    def __init__(self, world_size):
+        self.world_size = world_size
 
     def compute_reward(self, *args, **kwargs):
         """
-        Dual-compatible reward hook. 
-        Handles old environment keyword calls and reroutes them to our new 
-        Risk-Aware + Anti-Spinning optimization layout.
+        Robust, type-checked reward hook.
+        Properly differentiates between old environment positional steps
+        and new explicit training loop dictionary calls.
         """
-        # If the environment calls it using the old keyword arguments, bundle them into an 'info' dict
-        if 'progress' in kwargs or len(args) > 0:
-            # Fallbacks to extract values based on your old signature
-            progress = kwargs.get('progress', args[0] if len(args) > 0 else 0.0)
-            current_action = kwargs.get('current_action', args[1] if len(args) > 1 else 0)
-            lidar_readings = kwargs.get('lidar_readings', args[3] if len(args) > 3 else None)
-            collision = kwargs.get('collision', args[6] if len(args) > 6 else False)
-            reached_goal = kwargs.get('reached_goal', args[7] if len(args) > 7 else False)
+        info = {}
+        action_idx = 0
+
+        # Check if the first positional argument is an explicit dictionary (Our New Loop)
+        if len(args) > 0 and isinstance(args[0], dict):
+            info = args[0]
+            action_idx = kwargs.get('action_idx', args[1] if len(args) > 1 else 0)
             
-            # Reconstruct the expected 'info' packet dynamically
+        # Check if called via explicit old keywords (Our Old Env)
+        elif 'progress' in kwargs:
             info = {
-                'progress': progress,
-                'raw_lidar': lidar_readings,
-                'collision': collision,
-                'reached_goal': reached_goal
+                'progress': kwargs.get('progress', 0.0),
+                'raw_lidar': kwargs.get('lidar_readings', None),
+                'collision': kwargs.get('collision', False),
+                'reached_goal': kwargs.get('reached_goal', False)
             }
-            action_idx = current_action
-        else:
-            # If called directly from the new training loop using (info, action_idx)
-            info = args[0] if len(args) > 0 else kwargs.get('info', {})
-            action_idx = args[1] if len(args) > 1 else kwargs.get('action_idx', 0)
+            action_idx = kwargs.get('current_action', 0)
+            
+        # Fallback: Environment is passing old raw positional variables (progress, current_action, ...)
+        elif len(args) > 1:
+            info = {
+                'progress': args[0],
+                'raw_lidar': args[3] if len(args) > 3 else None,
+                'collision': args[6] if len(args) > 6 else False,
+                'reached_goal': args[7] if len(args) > 7 else False
+            }
+            action_idx = args[1]
 
         # ---------------------------------------------------------
         # NEW CORE LOGIC: Risk-Aware + Anti-Spinning
@@ -87,20 +97,19 @@ class UAVRewardShaping:
         reward = 0.0
         
         # 1. Standard Performance Metrics
-        reward += 5.0 * info.get('progress', 0.0)
+        reward += 5.0 * float(info.get('progress', 0.0))
         reward -= 0.005  # Decisiveness Time Penalty
         
-        # 2. Angular Velocity Dampener (Fixes the Spinning)
-        # Action space mapping: 3 = Turn Left, 4 = Turn Right
+        # 2. Angular Velocity Dampener (Anti-Spinning Fix)
         if action_idx in [3, 4]:
-            reward -= 0.05  # Slight energy penalty to prevent continuous spinning
+            reward -= 0.05  # Slight energy penalty for turning on the spot
             
-        # 3. Risk-Aware LiDAR Safety Envelope (Fixes the Crashing)
+        # 3. Risk-Aware LiDAR Safety Envelope (Anti-Collision Fix)
         lidar_readings = info.get('raw_lidar', None) 
         if lidar_readings is not None and len(lidar_readings) > 0:
             min_lidar = np.min(lidar_readings)
             
-            # Danger-zone breach threshold set at 0.25 meters
+            # Danger-zone boundary breach threshold set at 0.25 meters
             if min_lidar < 0.25:
                 risk_penalty = 2.0 * (0.25 - min_lidar)
                 reward -= risk_penalty
