@@ -20,7 +20,7 @@ def generate_dynamic_dqn_animation(checkpoint_episode=2000, n_obstacles=2):
 
     # Load your trained model weights safely
     agent = DQNAgent(state_dim=state_dim, action_dim=action_dim, device=device)
-    checkpoint_path = f"/content/drive/MyDrive/drl-uav-navigation/outputs_dynamic/checkpoints/dqn_dynamic_{checkpoint_episode}.pth"
+    checkpoint_path = f"/content/drive/MyDrive/drl-uav-navigation/outputs_dynamic/checkpoints/{checkpoint_episode}.pth"
 
     if not os.path.exists(checkpoint_path):
         print(f"Error: Checkpoint file not found at {checkpoint_path}")
