@@ -42,12 +42,12 @@ class UAVLiDARDynamicEnv(gym.Env if gym is not None else object):
         self.n_obstacles = n_obstacles
         self.obstacle_radius_range = obstacle_radius_range
 
-        self.dynamics = AdvancedUAVDynamics()
+        self.rng = np.random.default_rng(seed)
+        self.dynamics = AdvancedUAVDynamics(rng= self.rng)
         self.reward_shaper = UAVRewardShaping(world_size=self.world_size) 
 
         self.theta = 0.0
         self.omega = 0.0
-        self.rng = np.random.default_rng(seed)
 
         self.action_space = spaces.Discrete(5)
 
@@ -69,7 +69,8 @@ class UAVLiDARDynamicEnv(gym.Env if gym is not None else object):
     def reset(self, seed=None, options=None):
         if seed is not None:
             self.rng = np.random.default_rng(seed)
-
+            self.dynamics.set_rng(self.rng)
+            
         self.steps = 0
         self.theta = 0.0
         self.omega = 0.0
@@ -144,45 +145,45 @@ class UAVLiDARDynamicEnv(gym.Env if gym is not None else object):
             new_center = np.clip(new_center, radius, self.world_size - radius)
             self.obstacles[i] = [new_center.astype(np.float32), radius]
 
-            distance = self._distance_to_goal()
-            progress = self.prev_distance - distance
-            self.prev_distance = distance
+        # IMPORTANT: everything below must be OUTSIDE the obstacle loop
+        distance = self._distance_to_goal()
+        progress = self.prev_distance - distance
+        self.prev_distance = distance
 
-            lidar = self._lidar_scan()
-            speed = float(np.linalg.norm(self.vel))
+        lidar = self._lidar_scan()
+        speed = float(np.linalg.norm(self.vel))
 
-            collision = self._check_collision()
-            reached_goal = distance <= self.goal_radius
-            timeout = self.steps >= self.max_steps
+        collision = self._check_collision()
+        reached_goal = distance <= self.goal_radius
+        timeout = self.steps >= self.max_steps
 
-            reward = self.reward_shaper.compute_reward(
-                progress=progress,
-                action=action,
-                lidar_readings=lidar,
-                collision=collision,
-                reached_goal=reached_goal,
-                speed=speed,
-                omega=float(self.omega)
-            )
+        reward = self.reward_shaper.compute_reward(
+            progress=progress,
+            action=action,
+            lidar_readings=lidar,
+            collision=collision,
+            reached_goal=reached_goal,
+            speed=speed,
+            omega=float(self.omega)
+        )
 
-            self.prev_action = action
+        self.prev_action = action
 
-            terminated = collision or reached_goal
-            truncated = timeout
+        terminated = collision or reached_goal
+        truncated = timeout
 
-            info = {
-                "progress": float(progress),
-                "distance_to_goal": float(distance),
-                "collision": bool(collision),
-                "reached_goal": bool(reached_goal),
-                "speed": speed,
-                "omega": float(self.omega),
-                "raw_lidar": lidar,
-                "min_lidar_distance": float(np.min(lidar)) * self.world_size,
-            }
+        info = {
+            "progress": float(progress),
+            "distance_to_goal": float(distance),
+            "collision": bool(collision),
+            "reached_goal": bool(reached_goal),
+            "speed": speed,
+            "omega": float(self.omega),
+            "raw_lidar": lidar,
+            "min_lidar_distance": float(np.min(lidar)) * self.world_size,
+        }
 
-            return self._get_obs(), reward, terminated, truncated, info
-
+        return self._get_obs(), reward, terminated, truncated, info
 
     def _get_obs(self):
         lidar = self._lidar_scan()

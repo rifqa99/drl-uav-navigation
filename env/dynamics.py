@@ -1,9 +1,10 @@
+    
 import numpy as np
 import math
 
 
 class AdvancedUAVDynamics:
-    def __init__(self):
+    def __init__(self, rng=None):
         # Kinematic state parameters
         self.dt = 0.1
         self.mass = 1.5          # Total mass of the quadcopter (kg)
@@ -14,6 +15,10 @@ class AdvancedUAVDynamics:
 
         # Ambient continuous wind vector
         self.wind_speed = np.array([0.5, -0.2])
+        self.rng = rng if rng is not None else np.random.default_rng()
+
+    def set_rng(self, rng):
+        self.rng = rng
 
     def update_physics(self, pos, vel, theta, omega, action):
         """
@@ -33,8 +38,9 @@ class AdvancedUAVDynamics:
             torque = -0.5  # Counter-clockwise rotational torque
 
         # 1. Stochastic Wind Noise Addition
-        wind_noise = np.random.normal(0, 0.1, size=(2,))
+        wind_noise = self.rng.normal(0.0, 0.1, size=(2,))
         total_wind = self.wind_speed + wind_noise
+
 
         # 2. Linear Second-Order Dynamics Equations
         # Thrust force vector resolution based on current heading angle (theta)
