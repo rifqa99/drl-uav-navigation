@@ -21,11 +21,11 @@ class UAVRewardShaping:
 
         if reached_goal:
             terminal_reward = 1000.0
-            safe_landing_speed = 0.3
+            safe_landing_speed = 0.4
             
             # Kinematic Braking Constraint
             if speed > safe_landing_speed:
-                terminal_reward -= 500.0 * (speed - safe_landing_speed)
+                terminal_reward -= 200.0 * (speed - safe_landing_speed)
             return float(terminal_reward)
 
         reward = 0.0
@@ -44,7 +44,7 @@ class UAVRewardShaping:
         if lidar_readings is not None and len(lidar_readings) > 0:
             min_lidar_m = float(np.min(lidar_readings)) * self.world_size
             if min_lidar_m < self.safety_distance:
-                risk_penalty = 4.0 * (self.safety_distance - min_lidar_m) # 2  ıs too gentle, 8 is too harsh
+                risk_penalty = 2.0 * (self.safety_distance - min_lidar_m) # 2  ıs too gentle, 8 is too harsh
                 reward -= risk_penalty
 
         return float(reward)

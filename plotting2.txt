@@ -1,0 +1,166 @@
+import os
+import numpy as np
+import matplotlib.pyplot as plt
+
+BASE_DIR = r"G:\UNİ\BAHAR\DRL\Project\drl-uav-navigation\outputs"
+STD_DIR = os.path.join(BASE_DIR, "dynamic_standard")
+RISK_DIR = os.path.join(BASE_DIR, "dynamic_risk")
+PLOTS_DIR = os.path.join(BASE_DIR, "plots")
+os.makedirs(PLOTS_DIR, exist_ok=True)
+
+WORLD_SIZE = 10.0
+
+def load(folder, name):
+    path = os.path.join(folder, name)
+    return np.load(path, allow_pickle=True) if os.path.exists(path) else None
+
+def ma(x, w=100):
+    x = np.asarray(x, dtype=float)
+    if len(x) < w:
+        return x, np.arange(len(x))
+    y = np.convolve(x, np.ones(w)/w, mode="valid")
+    episodes = np.arange(w-1, w-1+len(y))
+    return y, episodes
+
+def to_meters(x):
+    x = np.asarray(x, dtype=float)
+    # if values are mostly <= 1, assume normalized LiDAR
+    if np.nanmedian(x) <= 1.2:
+        return x * WORLD_SIZE
+    return x
+
+def save(name):
+    plt.tight_layout()
+    path = os.path.join(PLOTS_DIR, name)
+    plt.savefig(path, dpi=300, bbox_inches="tight")
+    plt.close()
+    print("Saved:", path)
+
+std_success = load(STD_DIR, "success_history_dynamic.npy")
+risk_success = load(RISK_DIR, "success_history_dynamic.npy")
+
+std_collision = load(STD_DIR, "collision_history_dynamic.npy")
+std_timeout = load(STD_DIR, "timeout_history_dynamic.npy")
+
+std_minprox = load(STD_DIR, "min_proximity_history_dynamic.npy")
+risk_minprox = load(RISK_DIR, "min_proximity_history.npy")
+
+std_rot = load(STD_DIR, "total_rotation_history_dynamic.npy")
+risk_rot = load(RISK_DIR, "total_rotation_history.npy")
+
+std_rewards = load(STD_DIR, "rewards_history_dynamic.npy")
+risk_rewards = load(RISK_DIR, "rewards_history_dynamic.npy")
+
+
+# =====================================================
+# 1. Rolling success rate comparison
+# =====================================================
+plt.figure(figsize=(10,5))
+
+if std_success is not None:
+    y, x = ma(std_success * 100, 100)
+    plt.plot(x, y, label="Dynamic Standard")
+
+if risk_success is not None:
+    y, x = ma(risk_success * 100, 100)
+    plt.plot(x, y, label="Risk-Aware Dynamic")
+
+plt.axhline(70, linestyle="--", color="red", label="70% Curriculum Threshold")
+plt.xlabel("Training Episode")
+plt.ylabel("Rolling Success Rate (%)")
+plt.title("Rolling Success Rate Comparison")
+plt.grid(True, alpha=0.3)
+plt.legend()
+save("fixed_01_success_rate_comparison.png")
+
+
+# =====================================================
+# 2. Reward convergence separately, not as main evidence
+# =====================================================
+fig, axes = plt.subplots(1, 2, figsize=(14,5), sharey=False)
+
+if std_rewards is not None:
+    y, x = ma(std_rewards, 100)
+    axes[0].plot(x, y)
+    axes[0].set_title("Dynamic Standard Reward")
+    axes[0].set_xlabel("Training Episode")
+    axes[0].set_ylabel("Smoothed Reward")
+    axes[0].grid(True, alpha=0.3)
+
+if risk_rewards is not None:
+    y, x = ma(risk_rewards, 100)
+    axes[1].plot(x, y)
+    axes[1].set_title("Risk-Aware Reward")
+    axes[1].set_xlabel("Training Episode")
+    axes[1].set_ylabel("Smoothed Reward")
+    axes[1].grid(True, alpha=0.3)
+
+plt.tight_layout()
+plt.savefig(os.path.join(PLOTS_DIR, "fixed_02_reward_separate.png"), dpi=300, bbox_inches="tight")
+plt.close()
+
+
+# =====================================================
+# 3. Minimum proximity comparison in meters
+# =====================================================
+plt.figure(figsize=(10,5))
+
+if std_minprox is not None:
+    std_m = to_meters(std_minprox)
+    y, x = ma(std_m, 100)
+    plt.plot(x, y, label="Dynamic Standard")
+
+if risk_minprox is not None:
+    risk_m = to_meters(risk_minprox)
+    y, x = ma(risk_m, 100)
+    plt.plot(x, y, label="Risk-Aware Dynamic")
+
+plt.axhline(0.25, linestyle="--", color="red", label="Safety Boundary 0.25 m")
+plt.xlabel("Training Episode")
+plt.ylabel("Minimum Obstacle Distance (m)")
+plt.title("Minimum Proximity During Training")
+plt.grid(True, alpha=0.3)
+plt.legend()
+save("fixed_03_minimum_proximity_meters.png")
+
+
+# =====================================================
+# 4. Rotation behavior comparison
+# =====================================================
+plt.figure(figsize=(10,5))
+
+if std_rot is not None:
+    y, x = ma(std_rot, 100)
+    plt.plot(x, y, label="Dynamic Standard")
+
+if risk_rot is not None:
+    y, x = ma(risk_rot, 100)
+    plt.plot(x, y, label="Risk-Aware Dynamic")
+
+plt.xlabel("Training Episode")
+plt.ylabel("Rotation Actions per Episode")
+plt.title("Rotation Action Frequency")
+plt.grid(True, alpha=0.3)
+plt.legend()
+save("fixed_04_rotation_comparison.png")
+
+
+# =====================================================
+# 5. Collision and timeout rolling rates for standard
+# =====================================================
+plt.figure(figsize=(10,5))
+
+if std_collision is not None:
+    y, x = ma(std_collision * 100, 100)
+    plt.plot(x, y, label="Collision Rate")
+
+if std_timeout is not None:
+    y, x = ma(std_timeout * 100, 100)
+    plt.plot(x, y, label="Timeout Rate")
+
+plt.xlabel("Training Episode")
+plt.ylabel("Rolling Rate (%)")
+plt.title("Dynamic Standard Failure Modes")
+plt.grid(True, alpha=0.3)
+plt.legend()
+save("fixed_05_standard_failure_modes.png")
