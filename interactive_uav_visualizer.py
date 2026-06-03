@@ -450,7 +450,7 @@ class UAVInteractiveVisualizer(QMainWindow):
 
 
 if __name__ == "__main__":
-    checkpoint_file = "outputs/checkpoints/dqn_adaptive_obs_8_ep_4400.pth"
+    checkpoint_file = "outputs/checkpoints/dqn_adaptive_obs_8_ep_6000.pth"
  
     app = QApplication(sys.argv)
     gcs_window = UAVInteractiveVisualizer(checkpoint_path=checkpoint_file)
