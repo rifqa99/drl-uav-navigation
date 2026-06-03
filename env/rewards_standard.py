@@ -14,30 +14,31 @@ class UAVRewardShaping:
         speed=0.0,
         omega=0.0
     ):
+        
+        # 1. Catastrophic Terminal Triggers
         if collision:
-            return -300.0
+            return -1000.0
 
         if reached_goal:
             return 1000.0
-
+        
         reward = 0.0
 
+        # 2. Potential-Based Progress & Decisiveness Constraints
         reward += 5.0 * float(progress)
-        reward -= 0.005
+        reward -= 0.005  # Standard frame time penalty
 
-        action_energy = {
-            0: 0.0,
-            1: 1.0,
-            2: 1.0,
-            3: 0.3,
-            4: 0.3,
-        }
+        # 3. Dual Rotational Smoothness Constraints (Anti-Spinning Fix)
+        if action in [3, 4]:
+            reward -= 0.20  # Actuator selection penalty
+            
 
-        reward -= 0.01 * action_energy.get(action, 0.0)
-
-        min_lidar_m = float(np.min(lidar_readings)) * self.world_size
-
-        if min_lidar_m < 0.25:
-            reward -= 2.0 * (0.25 - min_lidar_m)
+        # 4. Proximity Risk Envelope
+        if lidar_readings is not None and len(lidar_readings) > 0:
+            min_lidar_m = float(np.min(lidar_readings)) * self.world_size
+            if min_lidar_m < self.safety_distance:
+                risk_penalty = 4.0 * (self.safety_distance - min_lidar_m) # 2  ıs too gentle, 8 is too harsh
+                reward -= risk_penalty
 
         return float(reward)
+    
