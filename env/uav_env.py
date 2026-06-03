@@ -1,10 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from env.dynamics import AdvancedUAVDynamics
-if reward_mode == "risk_aware":
-    from env.rewards import UAVRewardShaping
-else:
-    from env.rewards_standard import UAVRewardShaping
+from env.rewards import UAVRewardShaping
+
 try:
     import gymnasium as gym
     from gymnasium import spaces
