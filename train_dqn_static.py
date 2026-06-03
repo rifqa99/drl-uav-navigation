@@ -10,8 +10,19 @@ from agents.replay_buffer import ReplayBuffer
 from agents.dqn_agent import DQNAgent
 
 
+def make_env(current_obstacles, reward_mode):
+    return UAVLiDAREnv(
+        seed=42,
+        drag=0.15,
+        thrust=0.6,
+        max_speed=1.2,
+        n_obstacles=current_obstacles,
+        reward_mode=reward_mode
+    )
+
+
 def train_static(
-    reward_mode="risk_aware",
+    reward_mode="standard",
     checkpoint_to_load=None
 ):
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -26,20 +37,15 @@ def train_static(
     buffer_capacity = 100000
     target_update_freq = 10
 
-    n_obstacles = 5
+    current_obstacles = 2
+    max_obstacles = 6
+    curriculum_threshold = 0.70
 
     save_dir = f"/content/drive/MyDrive/drl-uav-navigation/outputs_static_{reward_mode}"
     checkpoint_dir = os.path.join(save_dir, "checkpoints")
     os.makedirs(checkpoint_dir, exist_ok=True)
 
-    env = UAVLiDAREnv(
-        seed=42,
-        drag=0.15,
-        thrust=0.6,
-        max_speed=1.2,
-        n_obstacles=n_obstacles,
-        reward_mode=reward_mode
-    )
+    env = make_env(current_obstacles, reward_mode)
 
     state_dim = env.observation_space.shape[0] * stack_size
     action_dim = env.action_space.n
@@ -62,11 +68,14 @@ def train_static(
     rewards_history = []
     loss_history = []
     success_history = []
+    obstacle_history = []
     min_proximity_history = []
     rotation_history = []
     speed_history = []
     omega_history = []
     steps_history = []
+
+    success_window = deque(maxlen=100)
 
     if checkpoint_to_load and os.path.exists(checkpoint_to_load):
         checkpoint = torch.load(
@@ -83,10 +92,29 @@ def train_static(
 
         agent.epsilon = checkpoint.get("epsilon", agent.epsilon)
         start_episode = checkpoint.get("episode", 0) + 1
+        current_obstacles = checkpoint.get("current_obstacles", 2)
+
+        env = make_env(current_obstacles, reward_mode)
 
         print(f"Resuming from episode {start_episode}")
+        print(f"Current obstacles: {current_obstacles}")
 
     for episode in tqdm(range(start_episode, episodes + 1)):
+
+        if len(success_window) == success_window.maxlen:
+            rolling_sr = sum(success_window) / len(success_window)
+
+            if rolling_sr >= curriculum_threshold and current_obstacles < max_obstacles:
+                current_obstacles += 2
+
+                print("\n" + "=" * 60)
+                print(f"Stage cleared: rolling success rate = {rolling_sr * 100:.1f}%")
+                print(f"Increasing static obstacles to {current_obstacles}")
+                print("=" * 60 + "\n")
+
+                env = make_env(current_obstacles, reward_mode)
+                success_window.clear()
+
         obs, _ = env.reset(seed=42 + episode)
 
         frame_stack = deque([obs] * stack_size, maxlen=stack_size)
@@ -147,10 +175,12 @@ def train_static(
             agent.update_target_network()
 
         is_success = 1 if info.get("reached_goal", False) else 0
+        success_window.append(is_success)
 
         rewards_history.append(float(episode_reward))
         loss_history.append(float(np.mean(episode_losses)) if episode_losses else 0.0)
         success_history.append(is_success)
+        obstacle_history.append(current_obstacles)
         rotation_history.append(int(episode_rotations))
         steps_history.append(int(episode_steps))
 
@@ -167,6 +197,7 @@ def train_static(
             print(
                 f"Ep {episode:04d} | "
                 f"Mode: {reward_mode} | "
+                f"Obs: {current_obstacles} | "
                 f"Reward: {episode_reward:8.2f} | "
                 f"SR100: {recent_sr:5.1f}% | "
                 f"Loss: {loss_history[-1]:.4f} | "
@@ -182,18 +213,18 @@ def train_static(
         if episode % 100 == 0:
             checkpoint_path = os.path.join(
                 checkpoint_dir,
-                f"dqn_static_{reward_mode}_ep_{episode}.pth"
+                f"dqn_static_{reward_mode}_obs_{current_obstacles}_ep_{episode}.pth"
             )
 
             torch.save(
                 {
                     "episode": episode,
                     "reward_mode": reward_mode,
+                    "current_obstacles": current_obstacles,
                     "model_state_dict": agent.q_network.state_dict(),
                     "target_model_state_dict": agent.target_network.state_dict(),
                     "optimizer_state_dict": agent.optimizer.state_dict(),
                     "epsilon": agent.epsilon,
-                    "n_obstacles": n_obstacles,
                 },
                 checkpoint_path
             )
@@ -201,6 +232,7 @@ def train_static(
             np.save(os.path.join(save_dir, "rewards_history.npy"), np.array(rewards_history))
             np.save(os.path.join(save_dir, "loss_history.npy"), np.array(loss_history))
             np.save(os.path.join(save_dir, "success_history.npy"), np.array(success_history))
+            np.save(os.path.join(save_dir, "obstacle_history.npy"), np.array(obstacle_history))
             np.save(os.path.join(save_dir, "min_proximity_history.npy"), np.array(min_proximity_history))
             np.save(os.path.join(save_dir, "rotation_history.npy"), np.array(rotation_history))
             np.save(os.path.join(save_dir, "speed_history.npy"), np.array(speed_history))
@@ -218,7 +250,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--reward_mode",
         type=str,
-        default="risk_aware",
+        default="standard",
         choices=["standard", "risk_aware"]
     )
 

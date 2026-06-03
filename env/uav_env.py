@@ -23,12 +23,12 @@ class UAVLiDAREnv(gym.Env if gym is not None else object):
         drag=0.2,
         thrust=1.0,
         max_speed=1.2,
-        goal_radius=0.6,          # Expanded slightly for easier initial convergence
+        goal_radius=0.6,
         collision_radius=0.25,
-        n_obstacles=5,            # Configurable via curriculum checkpoints
+        n_obstacles=2,
         obstacle_radius_range=(0.3, 0.8),
         seed=None,
-        reward_mode="standard",   # "standard" or "risk_aware"
+        reward_mode="standard",
     ):
         if gym is None:
             raise ImportError("Install gymnasium first: pip install gymnasium")
@@ -53,7 +53,6 @@ class UAVLiDAREnv(gym.Env if gym is not None else object):
 
         self.rng = np.random.default_rng(seed)
 
-        # Physics Module Initialization
         try:
             self.dynamics = AdvancedUAVDynamics(rng=self.rng)
         except TypeError:
@@ -66,10 +65,8 @@ class UAVLiDAREnv(gym.Env if gym is not None else object):
         self.theta = 0.0
         self.omega = 0.0
 
-        # 5 Explicit Rotational/Thrust Actions
         self.action_space = spaces.Discrete(5)
 
-        # Dimension: 64 LiDAR + 5 state features
         obs_dim = self.n_lidar + 5
         self.observation_space = spaces.Box(
             low=-1.0,
@@ -90,7 +87,6 @@ class UAVLiDAREnv(gym.Env if gym is not None else object):
     def reset(self, seed=None, options=None):
         if seed is not None:
             self.rng = np.random.default_rng(seed)
-
             if hasattr(self.dynamics, "set_rng"):
                 self.dynamics.set_rng(self.rng)
 
@@ -100,13 +96,7 @@ class UAVLiDAREnv(gym.Env if gym is not None else object):
         self.vel = np.zeros(2, dtype=np.float32)
         self.prev_action = 0
 
-        # Fully reproducible initialization
-        self.pos = self.rng.uniform(
-            1.0,
-            3.0,
-            size=2
-        ).astype(np.float32)
-
+        self.pos = self.rng.uniform(1.0, 3.0, size=2).astype(np.float32)
         self.goal = self.rng.uniform(
             self.world_size - 3.0,
             self.world_size - 1.0,
@@ -122,7 +112,6 @@ class UAVLiDAREnv(gym.Env if gym is not None else object):
     def step(self, action):
         self.steps += 1
 
-        # --- ADVANCED RIGID-BODY KINEMATICS CALL ---
         self.pos, self.vel, self.theta, self.omega, accel = self.dynamics.update_physics(
             self.pos,
             self.vel,
@@ -131,7 +120,6 @@ class UAVLiDAREnv(gym.Env if gym is not None else object):
             action
         )
 
-        # Speed Limiter
         speed = np.linalg.norm(self.vel)
         if speed > self.max_speed:
             self.vel = self.vel / (speed + 1e-8) * self.max_speed
@@ -139,7 +127,6 @@ class UAVLiDAREnv(gym.Env if gym is not None else object):
         self.pos = np.clip(self.pos, 0.0, self.world_size)
         self.trajectory.append(self.pos.copy())
 
-        # Calculations
         distance = self._distance_to_goal()
         progress = self.prev_distance - distance
         self.prev_distance = distance
@@ -152,12 +139,9 @@ class UAVLiDAREnv(gym.Env if gym is not None else object):
         reached_goal = distance <= self.goal_radius
         timeout = self.steps >= self.max_steps
 
-        # --- MODULAR REWARD SHAPING CALL ---
         if self.reward_mode == "standard":
             reward = self._standard_reward(
                 progress=progress,
-                action=action,
-                lidar_readings=lidar,
                 collision=collision,
                 reached_goal=reached_goal
             )
@@ -172,11 +156,7 @@ class UAVLiDAREnv(gym.Env if gym is not None else object):
                 omega=omega
             )
 
-        # --- RE-ESTABLISH METRICS FOR INFO LOGGING ---
-        energy_use = 1.0 if action in [1, 2] else (
-            0.2 if action in [3, 4] else 0.0
-        )
-
+        energy_use = 1.0 if action in [1, 2] else (0.2 if action in [3, 4] else 0.0)
         smoothness_penalty = 1.0 if action != self.prev_action else 0.0
 
         self.prev_action = action
@@ -196,55 +176,28 @@ class UAVLiDAREnv(gym.Env if gym is not None else object):
             "raw_lidar": lidar,
             "min_lidar_distance": float(np.min(lidar)) * self.world_size,
             "reward_mode": self.reward_mode,
+            "n_obstacles": self.n_obstacles,
         }
 
         return self._get_obs(), float(reward), terminated, truncated, info
 
-    def _standard_reward(
-        self,
-        progress,
-        action,
-        lidar_readings,
-        collision,
-        reached_goal
-    ):
+    def _standard_reward(self, progress, collision, reached_goal):
         """
         Standard baseline reward.
-        This keeps the original static-navigation spirit:
-        progress reward + time penalty + light energy penalty + light obstacle proximity penalty.
+        No risk-aware LiDAR shaping.
+        No angular velocity penalty.
+        No landing speed constraint.
         """
 
         if collision:
-            return -300.0
+            return -1000.0
 
         if reached_goal:
             return 1000.0
 
         reward = 0.0
-
-        # Progress reward
         reward += 5.0 * float(progress)
-
-        # Small time penalty
         reward -= 0.005
-
-        # Energy penalty
-        action_energy = {
-            0: 0.0,   # Hover
-            1: 1.0,   # Forward thrust
-            2: 1.0,   # Reverse thrust / braking
-            3: 0.3,   # Clockwise turn
-            4: 0.3,   # Counter-clockwise turn
-        }
-
-        reward -= 0.01 * action_energy.get(action, 0.0)
-
-        # Obstacle proximity penalty in real meters
-        if lidar_readings is not None and len(lidar_readings) > 0:
-            min_lidar_m = float(np.min(lidar_readings)) * self.world_size
-
-            if min_lidar_m < 0.25:
-                reward -= 2.0 * (0.25 - min_lidar_m)
 
         return float(reward)
 
@@ -254,7 +207,6 @@ class UAVLiDAREnv(gym.Env if gym is not None else object):
         vx = self.vel[0] / self.max_speed
         vy = self.vel[1] / self.max_speed
 
-        # Internal orientation features for full state capability
         norm_theta = self.theta / np.pi
         norm_omega = self.omega / np.pi
 
@@ -298,11 +250,7 @@ class UAVLiDAREnv(gym.Env if gym is not None else object):
             wall_dist = self._ray_wall_distance(self.pos, direction)
             min_dist = min(min_dist, wall_dist)
 
-            readings[i] = np.clip(
-                min_dist / max_range,
-                0.0,
-                1.0
-            )
+            readings[i] = np.clip(min_dist / max_range, 0.0, 1.0)
 
         return readings
 
