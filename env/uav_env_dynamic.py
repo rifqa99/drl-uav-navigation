@@ -225,23 +225,6 @@ class UAVLiDARDynamicEnv(gym.Env if gym is not None else object):
         reached_goal = distance <= self.goal_radius
         timeout = self.steps >= self.max_steps
         
-        # For anti-rotation reward shaping,
-        #  maintain a window of recent angular velocities and positions
-        #  to detect if the UAV is spinning in place without making progress towards the goal.
-        delta_theta = np.arctan2(
-            np.sin(self.theta - self.prev_theta),
-            np.cos(self.theta - self.prev_theta)
-        )
-
-        self.rotation_accumulator += abs(delta_theta)
-        self.prev_theta = self.theta
-
-        full_spin_penalty = 0.0
-
-        if self.rotation_accumulator >= 2 * np.pi:
-            full_spin_penalty = -5.0
-            self.rotation_accumulator = 0.0
-            
         reward = self.reward_shaper.compute_reward(
             progress=progress,
             action=action,
@@ -250,7 +233,7 @@ class UAVLiDARDynamicEnv(gym.Env if gym is not None else object):
             reached_goal=reached_goal,
             speed=speed,
             omega=omega,
-            full_spin_penalty=full_spin_penalty
+            
         )
 
         self.prev_action = action

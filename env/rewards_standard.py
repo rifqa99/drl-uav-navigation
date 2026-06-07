@@ -33,9 +33,9 @@ class UAVRewardShaping:
         if action in [3, 4]:
             reward -= 0.10  # Actuator selection penalty
             
-        reward -= 0.03 * abs(float(omega))  # Kinetic angular velocity penalty
+        reward -= 0.05 * abs(float(omega))  # Kinetic angular velocity penalty
 
-        # strong event penalty
-        reward += full_spin_penalty
+        if abs(omega) > 5:
+            reward -= 1.0
 
         return float(reward)
