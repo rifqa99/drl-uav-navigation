@@ -201,6 +201,7 @@ def train_dqn_dynamic(
 
             if rolling_sr >= curriculum_threshold and current_obstacles < max_obstacles:
                 current_obstacles += 2
+                agent.epsilon = max(agent.epsilon, 0.40)
 
                 print("\n" + "=" * 60)
                 print(

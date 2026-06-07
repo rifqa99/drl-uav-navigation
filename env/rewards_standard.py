@@ -12,7 +12,8 @@ class UAVRewardShaping:
         collision,
         reached_goal,
         speed=0.0,
-        omega=0.0
+        omega=0.0,
+        full_spin_penalty=0.0
     ):
 
         if collision:
@@ -30,9 +31,11 @@ class UAVRewardShaping:
         reward -= 0.005
 
         if action in [3, 4]:
-            reward -= 0.20  # Actuator selection penalty
+            reward -= 0.10  # Actuator selection penalty
             
-        reward -= 0.10 * abs(float(omega))  # Kinetic angular velocity penalty
+        reward -= 0.03 * abs(float(omega))  # Kinetic angular velocity penalty
 
+        # strong event penalty
+        reward += full_spin_penalty
 
         return float(reward)
