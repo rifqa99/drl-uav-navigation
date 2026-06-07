@@ -1,5 +1,4 @@
-import numpy as np
-
+# import numpy as np
 
 class UAVRewardShaping:
     def __init__(self, world_size=10.0):
@@ -29,5 +28,11 @@ class UAVRewardShaping:
 
         # Time penalty
         reward -= 0.005
+
+        if action in [3, 4]:
+            reward -= 0.20  # Actuator selection penalty
+            
+        reward -= 0.10 * abs(float(omega))  # Kinetic angular velocity penalty
+
 
         return float(reward)

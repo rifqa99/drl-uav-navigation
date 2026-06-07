@@ -1,7 +1,7 @@
 import os
 # Force CPU for PyQt visualizer to keep execution lightweight
 os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
-
+from matplotlib.lines import Line2D
 import sys
 import torch
 import numpy as np
@@ -41,19 +41,19 @@ class UnifiedUAVGCS(QMainWindow):
         # --- RECONNAISSANCE SUCCESS SEED POOLS (0 to 12 Obstacles) ---
         # Modify these integer sets to include your specific preferred validation seeds
         self.performance_seed_pools = {
-            0:  [42, 101, 202, 303],
-            1:  [12, 55, 99, 142],
-            2:  [7, 23, 88, 156],
-            3:  [19, 45, 112, 921],
-            4:  [34, 76, 231, 542],
-            5:  [3, 81, 144, 256],
-            6:  [8, 17, 91, 412],
-            7:  [11, 66, 133, 777],
-            8:  [22, 94, 305, 812],
-            9:  [5, 50, 150, 450],
-            10: [13, 73, 273, 873],
-            11: [14, 84, 384, 984],
-            12: [9, 18, 218, 518]
+            0:  [957401],
+            1:  [1],
+            2:  [92130],
+            3:  [542264, 492507],
+            4:  [492507, 123],
+            5:  [1,23],
+            6:  [1,23],
+            7:  [655587],
+            8:  [1],
+            9:  [1],
+            10: [1, 960252],
+            11: [548834, 76450, 424896],
+            12: [9, 474377, 218, 76450]
         }
 
         # Runtime status variables
@@ -303,6 +303,17 @@ class UnifiedUAVGCS(QMainWindow):
         self.ax.add_patch(plt.Circle(self.env.goal, self.env.goal_radius * 0.3, color="#98c379", alpha=0.4, zorder=2))
         self.ax.plot(self.env.goal[0], self.env.goal[1], color="#98c379", marker="P", markersize=12, alpha=0.7, zorder=2)
 
+        start_pos = self.env.trajectory[0]
+
+        self.ax.plot(
+            start_pos[0],
+            start_pos[1],
+            marker='^',
+            color='#61afef',
+            markersize=10,
+            zorder=5
+        )
+
         if len(self.env.trajectory) > 1:
             traj = np.array(self.env.trajectory)
             self.ax.plot(traj[:, 0], traj[:, 1], color="#61afef", linestyle=":", linewidth=1.5, alpha=0.7, zorder=3)
@@ -317,8 +328,91 @@ class UnifiedUAVGCS(QMainWindow):
         
         # Display titles completely sanitized of seed IDs
         self.ax.set_title(f"Operational Framework: {self.regime_type} Environment Configuration", color="white", fontsize=11)
-        self.canvas.draw()
 
+        
+        # ===== Legend =====
+
+        legend_elements = [
+
+            Line2D(
+                [0], [0],
+                marker='^',
+                color='w',
+                markerfacecolor='#61afef',
+                markersize=10,
+                linestyle='None',
+                label='Start'
+            ),
+
+            Line2D(
+                [0], [0],
+                marker='P',
+                color='w',
+                markerfacecolor='#98c379',
+                markersize=10,
+                linestyle='None',
+                label='Goal'
+            ),
+
+            Line2D(
+                [0], [0],
+                marker='o',
+                color='#e06c75',
+                markersize=10,
+                linestyle='None',
+                label='Dynamic Obstacle'
+            ),
+
+            Line2D(
+                [0], [0],
+                color='#61afef',
+                linestyle=':',
+                linewidth=2,
+                label='UAV Trajectory'
+            )
+        ]
+
+        # ===== LiDAR Visualization (All 64 Beams) =====
+
+        try:
+            lidar_ranges = self.env._get_lidar_readings()
+
+            angles = np.linspace(
+                0,
+                2 * np.pi,
+                len(lidar_ranges),
+                endpoint=False
+            )
+
+            for angle, dist in zip(angles, lidar_ranges):
+
+                end_x = self.env.pos[0] + dist * np.cos(angle)
+                end_y = self.env.pos[1] + dist * np.sin(angle)
+
+                self.ax.plot(
+                    [self.env.pos[0], end_x],
+                    [self.env.pos[1], end_y],
+                    color="#56b6c2",
+                    alpha=0.35,
+                    linewidth=0.7,
+                    zorder=1
+                )
+
+        except Exception:
+            pass
+
+
+        # Legend
+        self.ax.legend(
+            handles=legend_elements,
+            loc='lower left',
+            fontsize=8,
+            framealpha=0.85
+        )
+
+        # Draw everything AFTER all plotting is finished
+        self.canvas.draw()
+        
     def run_single_sim_frame(self):
         if not self.sim_loop_active:
             return
@@ -364,8 +458,8 @@ class UnifiedUAVGCS(QMainWindow):
 
 if __name__ == "__main__":
     # Specify the target weight files for both models
-    dynamic_model = "outputs/checkpoints/dqn_riskaware_new_obs_8_ep_6000.pth"
-    static_model  = "outputs/checkpoints/dqn_static_obs_6_ep_6000.pth"
+    dynamic_model = "outputs/checkpoints/dqn_dynamic_standard_obs_8_ep_6000.pth"
+    static_model  = "outputs/checkpoints/dqn_static_standard_obs_6_ep_3000.pth"
 
     app = QApplication(sys.argv)
     gcs_window = UnifiedUAVGCS(dynamic_weights_path=dynamic_model, static_weights_path=static_model)

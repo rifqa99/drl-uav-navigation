@@ -1,13 +1,11 @@
 import numpy as np
 from env.dynamics import AdvancedUAVDynamics
-
 try:
     import gymnasium as gym
     from gymnasium import spaces
 except ImportError:
-    gym = None
-    spaces = None
-
+    import gym
+    from gym import spaces
 
 class UAVLiDARDynamicEnv(gym.Env if gym is not None else object):
     metadata = {"render_modes": ["human", "rgb_array"]}
@@ -17,9 +15,9 @@ class UAVLiDARDynamicEnv(gym.Env if gym is not None else object):
         world_size=10.0,
         n_lidar=64,
         max_steps=2000,
-        dt=0.1,
-        drag=0.2,
-        thrust=1.0,
+        dt=0.1, # Time step for physics updates, used for obstacle movement and UAV dynamics, measured in seconds
+        drag=0.2, 
+        thrust=1.0, 
         max_speed=1.2,
         goal_radius=0.6,
         collision_radius=0.25,
@@ -62,7 +60,7 @@ class UAVLiDARDynamicEnv(gym.Env if gym is not None else object):
 
         self.action_space = spaces.Discrete(5)
 
-        obs_dim = self.n_lidar + 5
+        obs_dim = self.n_lidar + 5 
         self.observation_space = spaces.Box(
             low=-1.0,
             high=1.0,
@@ -112,15 +110,19 @@ class UAVLiDARDynamicEnv(gym.Env if gym is not None else object):
         return self._get_obs(), {}
 
     def _generate_dynamic_obstacles(self):
-        """Generates random obstacle locations and assigns them constant kinetic velocities."""
+        """Generate dynamic obstacles with safe clearance from UAV start and goal."""
         self.obstacles = []
         self.obstacle_vels = []
 
-        start = np.array([1.0, 1.0])
-        goal = np.array([self.world_size - 1.0, self.world_size - 1.0])
+        min_start_clearance = 1.0
+        min_goal_clearance = 1.0
+        min_obstacle_gap = 0.2
+
+        start = self.pos
+        goal = self.goal
 
         for _ in range(self.n_obstacles):
-            for _attempt in range(100):
+            for _attempt in range(300):
                 radius = self.rng.uniform(*self.obstacle_radius_range)
 
                 center = self.rng.uniform(
@@ -129,22 +131,40 @@ class UAVLiDARDynamicEnv(gym.Env if gym is not None else object):
                     size=2
                 )
 
-                too_close_start = np.linalg.norm(center - start) < 1.5
-                too_close_goal = np.linalg.norm(center - goal) < 1.5
+                # Do not spawn obstacle too close to UAV initial position
+                too_close_start = (
+                    np.linalg.norm(center - start)
+                    <= radius + self.collision_radius + min_start_clearance
+                )
 
-                if not too_close_start and not too_close_goal:
-                    self.obstacles.append(
-                        [center.astype(np.float32), float(radius)]
-                    )
+                # Do not spawn obstacle too close to goal region
+                too_close_goal = (
+                    np.linalg.norm(center - goal)
+                    <= radius + self.goal_radius + min_goal_clearance
+                )
 
-                    # Assign a slow velocity vector components between [-0.25, 0.25] m/s
-                    v_x = self.rng.uniform(-0.25, 0.25)
-                    v_y = self.rng.uniform(-0.25, 0.25)
+                # Do not overlap with previously generated obstacles
+                overlaps_existing = False
+                for old_center, old_radius in self.obstacles:
+                    if np.linalg.norm(center - old_center) <= radius + old_radius + min_obstacle_gap:
+                        overlaps_existing = True
+                        break
 
-                    self.obstacle_vels.append(
-                        np.array([v_x, v_y], dtype=np.float32)
-                    )
-                    break
+                if too_close_start or too_close_goal or overlaps_existing:
+                    continue
+
+                self.obstacles.append(
+                    [center.astype(np.float32), float(radius)]
+                )
+
+                v_x = self.rng.uniform(-0.25, 0.25)
+                v_y = self.rng.uniform(-0.25, 0.25)
+
+                self.obstacle_vels.append(
+                    np.array([v_x, v_y], dtype=np.float32)
+                )
+
+                break
 
     def step(self, action):
         self.steps += 1
@@ -362,12 +382,12 @@ class UAVLiDARDynamicEnv(gym.Env if gym is not None else object):
 
         return min(distances) if distances else self.world_size
 
-    def _distance_to_goal(self):
+    def _distance_to_goal(self): # Euclidean distance from UAV to goal, used for reward shaping and termination
         return float(
             np.linalg.norm(self.goal - self.pos)
         )
 
-    def _check_collision(self):
+    def _check_collision(self): #is True if the radius of the UAV overlaps with an obstacle or wall
         if np.any(self.pos <= 0.0) or np.any(self.pos >= self.world_size):
             return True
 

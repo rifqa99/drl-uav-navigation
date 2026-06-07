@@ -15,9 +15,9 @@ CHECKPOINTS = {
         os.path.join(BASE_DIR, "checkpoints",
                      "dqn_dynamic_standard_obs_8_ep_6000.pth"),
 
-    "Risk-Aware":
-        os.path.join(BASE_DIR, "checkpoints",
-                     "dqn_dynamic_risk_aware_obs_8_ep_6000.pth"),
+    # "Risk-Aware":
+    #     os.path.join(BASE_DIR, "checkpoints",
+    #                  "dqn_dynamic_risk_aware_obs_8_ep_6000.pth"),
 }
 
 SAVE_DIR = os.path.join(BASE_DIR, "test_results")
