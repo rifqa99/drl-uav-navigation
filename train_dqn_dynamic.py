@@ -106,7 +106,7 @@ def train_dqn_dynamic(
 
     start_episode = 1
 
-    save_dir = f"/content/drive/MyDrive/drl-uav-navigation/outputs_dynamic_{reward_mode}"
+    save_dir = f"/content/drive/MyDrive/drl-uav-new/outputs_dynamic_{reward_mode}"
     checkpoint_dir = os.path.join(save_dir, "checkpoints")
     os.makedirs(checkpoint_dir, exist_ok=True)
 
