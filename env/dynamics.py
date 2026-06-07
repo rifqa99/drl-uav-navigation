@@ -33,9 +33,9 @@ class AdvancedUAVDynamics:
         elif action == 2:
             thrust = -1.5  # Linear breaking force
         elif action == 3:
-            torque = 0.5   # Clockwise rotational torque
+            torque = 0.25   # Clockwise rotational torque
         elif action == 4:
-            torque = -0.5  # Counter-clockwise rotational torque
+            torque = -0.25  # Counter-clockwise rotational torque
 
         # 1. Stochastic Wind Noise Addition
         wind_noise = self.rng.normal(0.0, 0.1, size=(2,))
