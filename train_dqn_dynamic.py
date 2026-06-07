@@ -354,18 +354,14 @@ def train_dqn_dynamic(
         if episode % 20 == 0:
             print(
                 f"Ep {episode:04d} | "
-                f"Mode: {reward_mode} | "
                 f"Obs: {current_obstacles} | "
                 f"RollingSR: {rolling_sr:5.1f}% | "
                 f"Reward: {episode_reward:8.2f} | "
-                f"Loss: {avg_loss:.4f} | "
                 f"Steps: {episode_steps} | "
-                f"d_min: {episode_min_proximity:.3f}m | "
                 f"Rot: {episode_total_rotation} | "
                 f"Speed: {avg_speed:.3f} | "
                 f"Omega: {avg_omega:.3f} | "
                 f"Goal: {bool(final_info.get('reached_goal', False))} | "
-                f"Collision: {bool(final_info.get('collision', False))} | "
                 f"Eps: {agent.epsilon:.3f}"
             )
 
