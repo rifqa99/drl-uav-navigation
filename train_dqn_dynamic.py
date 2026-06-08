@@ -84,7 +84,7 @@ def save_histories(
 
 
 def train_dqn_dynamic(
-    reward_mode="standard",
+    reward_mode="risk_aware",
     checkpoint_file=None
 ):
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -434,7 +434,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--reward_mode",
         type=str,
-        default="standard",
+        default="risk_aware",
         choices=["standard", "risk_aware"]
     )
 

@@ -13,7 +13,7 @@ BASE_DIR = r"G:\UNİ\BAHAR\DRL\Project\drl-uav-navigation\outputs"
 CHECKPOINTS = {
     "Dynamic Standard":
         os.path.join(BASE_DIR, "checkpoints",
-                     "dqn_dynamic_standard_obs_8_ep_6000.pth"),
+                     "dqn_dynamic_standard_obs_8_ep_3200.pth"),
 
     # "Risk-Aware":
     #     os.path.join(BASE_DIR, "checkpoints",

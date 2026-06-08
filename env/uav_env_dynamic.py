@@ -49,7 +49,7 @@ class UAVLiDARDynamicEnv(gym.Env if gym is not None else object):
         self.dynamics = AdvancedUAVDynamics(rng=self.rng)
 
         if self.reward_mode == "risk_aware":
-            from env.rewards import UAVRewardShaping
+            from env.rewards_riskaware import UAVRewardShaping
         else:
             from env.rewards_standard import UAVRewardShaping
 

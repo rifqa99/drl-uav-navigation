@@ -53,7 +53,8 @@ class UnifiedUAVGCS(QMainWindow):
             9:  [1],
             10: [1, 960252],
             11: [548834, 76450, 424896],
-            12: [9, 474377, 218, 76450]
+            # 12: [9, 474377, 218, 76450],
+            12: [76450]
         }
 
         # Runtime status variables
@@ -373,9 +374,10 @@ class UnifiedUAVGCS(QMainWindow):
         ]
 
         # ===== LiDAR Visualization (All 64 Beams) =====
+        # ===== LiDAR Visualization (All 64 Beams) =====
 
         try:
-            lidar_ranges = self.env._get_lidar_readings()
+            lidar_ranges = self.env._lidar_scan() * self.env.world_size
 
             angles = np.linspace(
                 0,
@@ -385,7 +387,6 @@ class UnifiedUAVGCS(QMainWindow):
             )
 
             for angle, dist in zip(angles, lidar_ranges):
-
                 end_x = self.env.pos[0] + dist * np.cos(angle)
                 end_y = self.env.pos[1] + dist * np.sin(angle)
 
@@ -393,23 +394,13 @@ class UnifiedUAVGCS(QMainWindow):
                     [self.env.pos[0], end_x],
                     [self.env.pos[1], end_y],
                     color="#56b6c2",
-                    alpha=0.35,
-                    linewidth=0.7,
-                    zorder=1
+                    alpha=0.45,
+                    linewidth=0.8,
+                    zorder=3
                 )
 
-        except Exception:
-            pass
-
-
-        # Legend
-        self.ax.legend(
-            handles=legend_elements,
-            loc='lower left',
-            fontsize=8,
-            framealpha=0.85
-        )
-
+        except Exception as e:
+            print("LiDAR draw error:", e)
         # Draw everything AFTER all plotting is finished
         self.canvas.draw()
         
@@ -458,7 +449,8 @@ class UnifiedUAVGCS(QMainWindow):
 
 if __name__ == "__main__":
     # Specify the target weight files for both models
-    dynamic_model = "outputs/checkpoints/dqn_dynamic_standard_obs_8_ep_6000.pth"
+    # dynamic_model = "outputs/checkpoints/dqn_dynamic_standard_obs_8_ep_6000.pth"
+    dynamic_model = "outputs/checkpoints/dqn_dynamic_standard_obs_8_ep_3200.pth"
     static_model  = "outputs/checkpoints/dqn_static_standard_obs_6_ep_3000.pth"
 
     app = QApplication(sys.argv)

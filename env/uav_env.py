@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from env.dynamics import AdvancedUAVDynamics
-from env.rewards import UAVRewardShaping
+from env.rewards_riskaware import UAVRewardShaping
 
 try:
     import gymnasium as gym
