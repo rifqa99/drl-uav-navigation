@@ -30,12 +30,12 @@ class UAVRewardShaping:
         # Time penalty
         reward -= 0.005
 
-        if action in [3, 4]:
-            reward -= 0.10  # Actuator selection penalty
+        # if action in [3, 4]:
+        #     reward -= 0.10  # Actuator selection penalty
             
-        reward -= 0.05 * abs(float(omega))  # Kinetic angular velocity penalty
+        # reward -= 0.05 * abs(float(omega))  # Kinetic angular velocity penalty
 
-        if abs(omega) > 5:
-            reward -= 1.0
+        # if abs(omega) > 5:
+        #     reward -= 1.0
 
         return float(reward)
