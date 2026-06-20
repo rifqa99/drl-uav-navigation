@@ -1,0 +1,4 @@
+{
+  "python.analysis.diagnosticMode": "off",
+  "python.linting.enabled": false
+}
