@@ -5,8 +5,7 @@ import torch.nn as nn
 import torch.optim as optim
 
 # Swapped out basic network class targeting for the new Dueling architecture
-from agents.dueling_dqn import DuelingDQN
-
+from agents.dueling_dqn_CNN import DuelingDQN
 
 class DQNAgent:
     def __init__(
