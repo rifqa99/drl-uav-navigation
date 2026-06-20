@@ -6,9 +6,8 @@ from collections import deque
 from tqdm import tqdm
 
 from env.uav_env_dynamic import UAVLiDARDynamicEnv
-from agents.dueling_dqn_CNN import DuelingDQN
+from agents.dqn_agent import DQNAgent
 from agents.replay_buffer import ReplayBuffer
-
 
 def make_env(current_obstacles, reward_mode):
     return UAVLiDARDynamicEnv(
@@ -84,7 +83,7 @@ def save_histories(
 
 
 def train_dqn_dynamic(
-    reward_mode="risk_aware",
+    reward_mode="standard",
     checkpoint_file=None
 ):
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -434,7 +433,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--reward_mode",
         type=str,
-        default="risk_aware",
+        default="standard",
         choices=["standard", "risk_aware"]
     )
 
