@@ -9,7 +9,6 @@ from tqdm import tqdm
 from env.uav_env_dynamic import UAVLiDARDynamicEnv
 from agents.dqn_agent import DQNAgent
 from agents.replay_buffer import ReplayBuffer
-from env.rewards import UAVRewardShaping
 
 
 def train_direct8(seed=42):
@@ -71,9 +70,11 @@ def train_direct8(seed=42):
     # IMPORTANT:
     # Direct baseline always contains 8 dynamic obstacles.
     env = UAVLiDARDynamicEnv(
-        n_obstacles=8
+        n_obstacles=8,
+        reward_mode="standard",
+        n_lidar=256,
+        seed=42
     )
-
     reward_shaper = UAVRewardShaping(
         world_size=env.world_size
     )
@@ -153,7 +154,7 @@ def train_direct8(seed=42):
 
             action = agent.select_action(state)
 
-            next_obs, _, terminated, truncated, info = env.step(action)
+            next_obs, reward, terminated, truncated, info = env.step(action)
 
             done = terminated or truncated
 
@@ -177,14 +178,6 @@ def train_direct8(seed=42):
             if action in [3, 4]:
                 episode_total_rotation += 1
 
-            # ----------------------------------------------------
-            # SAME REWARD AS PROPOSED METHOD
-            # ----------------------------------------------------
-
-            custom_reward = reward_shaper.compute_reward(
-                info,
-                action_idx=action
-            )
 
             # ----------------------------------------------------
             # FRAME STACK
@@ -200,18 +193,15 @@ def train_direct8(seed=42):
             # ----------------------------------------------------
             # REPLAY BUFFER
             # ----------------------------------------------------
-
             replay_buffer.push(
                 state,
                 action,
-                custom_reward,
+                reward,
                 next_state,
                 done
             )
 
-            state = next_state
-
-            episode_reward += custom_reward
+            episode_reward += reward
 
             # ----------------------------------------------------
             # NETWORK UPDATE

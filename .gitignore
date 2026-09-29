@@ -3,8 +3,5 @@
 venv/
 .venv/
 env/
-<<<<<<< HEAD
-=======
 .vscode/
 outputs/
->>>>>>> 7f4dc1f94e3ac167bdb21070ededd10db776f44f

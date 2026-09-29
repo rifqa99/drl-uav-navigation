@@ -1,4 +1,4 @@
-import numpy as np
+trimport numpy as np
 from env.dynamics import AdvancedUAVDynamics
 try:
     import gymnasium as gym
