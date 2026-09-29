@@ -75,9 +75,6 @@ def train_direct8(seed=42):
         n_lidar=256,
         seed=42
     )
-    reward_shaper = UAVRewardShaping(
-        world_size=env.world_size
-    )
 
     state_dim = env.observation_space.shape[0] * stack_size
     action_dim = env.action_space.n
