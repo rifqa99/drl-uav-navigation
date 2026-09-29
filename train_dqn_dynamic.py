@@ -1,9 +1,16 @@
+<<<<<<< HEAD
+=======
+import os
+>>>>>>> 7f4dc1f94e3ac167bdb21070ededd10db776f44f
 import argparse
 import torch
 import numpy as np
 from collections import deque
 from tqdm import tqdm
+<<<<<<< HEAD
 from pathlib import Path
+=======
+>>>>>>> 7f4dc1f94e3ac167bdb21070ededd10db776f44f
 
 from env.uav_env_dynamic import UAVLiDARDynamicEnv
 from agents.dqn_agent import DQNAgent
@@ -34,6 +41,7 @@ def save_histories(
     stage_sr_history
 ):
     np.save(
+<<<<<<< HEAD
         save_dir / "rewards_history_dynamic.npy",
         np.array(rewards_history)
     )
@@ -79,12 +87,63 @@ def save_histories(
     )
     np.save(
         save_dir / "stage_sr_history_dynamic.npy",
+=======
+        os.path.join(save_dir, "rewards_history_dynamic.npy"),
+        np.array(rewards_history)
+    )
+    np.save(
+        os.path.join(save_dir, "loss_history_dynamic.npy"),
+        np.array(loss_history)
+    )
+    np.save(
+        os.path.join(save_dir, "success_history_dynamic.npy"),
+        np.array(success_history)
+    )
+    np.save(
+        os.path.join(save_dir, "obstacle_history_dynamic.npy"),
+        np.array(obstacle_history)
+    )
+    np.save(
+        os.path.join(save_dir, "min_proximity_history_dynamic.npy"),
+        np.array(min_proximity_history)
+    )
+    np.save(
+        os.path.join(save_dir, "total_rotation_history_dynamic.npy"),
+        np.array(total_rotation_history)
+    )
+    np.save(
+        os.path.join(save_dir, "speed_history_dynamic.npy"),
+        np.array(speed_history)
+    )
+    np.save(
+        os.path.join(save_dir, "omega_history_dynamic.npy"),
+        np.array(omega_history)
+    )
+    np.save(
+        os.path.join(save_dir, "steps_history_dynamic.npy"),
+        np.array(steps_history)
+    )
+    np.save(
+        os.path.join(save_dir, "collision_history_dynamic.npy"),
+        np.array(collision_history)
+    )
+    np.save(
+        os.path.join(save_dir, "timeout_history_dynamic.npy"),
+        np.array(timeout_history)
+    )
+    np.save(
+        os.path.join(save_dir, "stage_sr_history_dynamic.npy"),
+>>>>>>> 7f4dc1f94e3ac167bdb21070ededd10db776f44f
         np.array(stage_sr_history)
     )
 
 
 def train_dqn_dynamic(
+<<<<<<< HEAD
     reward_mode="standard",
+=======
+    reward_mode="risk_aware",
+>>>>>>> 7f4dc1f94e3ac167bdb21070ededd10db776f44f
     checkpoint_file=None
 ):
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -92,12 +151,20 @@ def train_dqn_dynamic(
     print(f"Device: {device}")
     print(f"Reward mode: {reward_mode}")
 
+<<<<<<< HEAD
     episodes = 5000
+=======
+    episodes = 6000
+>>>>>>> 7f4dc1f94e3ac167bdb21070ededd10db776f44f
     batch_size = 64
     gamma = 0.99
     lr = 1e-4
     stack_size = 3
+<<<<<<< HEAD
     buffer_capacity = 100000
+=======
+    buffer_capacity = 50000
+>>>>>>> 7f4dc1f94e3ac167bdb21070ededd10db776f44f
     target_update_frequency = 10
 
     current_obstacles = 2
@@ -106,11 +173,17 @@ def train_dqn_dynamic(
 
     start_episode = 1
 
+<<<<<<< HEAD
     PROJECT_ROOT = Path(__file__).resolve().parent
     save_dir = PROJECT_ROOT / "outputs"
 
     checkpoint_dir = save_dir / "checkpoints"
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
+=======
+    save_dir = f"/content/drive/MyDrive/drl-uav-new/outputs_dynamic_{reward_mode}"
+    checkpoint_dir = os.path.join(save_dir, "checkpoints")
+    os.makedirs(checkpoint_dir, exist_ok=True)
+>>>>>>> 7f4dc1f94e3ac167bdb21070ededd10db776f44f
 
     rewards_history = []
     loss_history = []
@@ -145,7 +218,11 @@ def train_dqn_dynamic(
         device=device,
     )
 
+<<<<<<< HEAD
     if checkpoint_file and Path(checkpoint_file).exists():
+=======
+    if checkpoint_file and os.path.exists(checkpoint_file):
+>>>>>>> 7f4dc1f94e3ac167bdb21070ededd10db776f44f
         print(f"Loading checkpoint: {checkpoint_file}")
 
         checkpoint = torch.load(
@@ -368,14 +445,23 @@ def train_dqn_dynamic(
             )
 
         if episode % 100 == 0:
+<<<<<<< HEAD
             checkpoint_path = checkpoint_dir / (
+=======
+            checkpoint_path = os.path.join(
+                checkpoint_dir,
+>>>>>>> 7f4dc1f94e3ac167bdb21070ededd10db776f44f
                 f"dqn_dynamic_{reward_mode}_obs_"
                 f"{current_obstacles}_ep_{episode}.pth"
             )
 
+<<<<<<< HEAD
             
             torch.save(
 
+=======
+            torch.save(
+>>>>>>> 7f4dc1f94e3ac167bdb21070ededd10db776f44f
                 {
                     "episode": episode,
                     "reward_mode": reward_mode,
@@ -437,8 +523,13 @@ if __name__ == "__main__":
     parser.add_argument(
         "--reward_mode",
         type=str,
+<<<<<<< HEAD
         default="standard",
         choices=["standard"]
+=======
+        default="risk_aware",
+        choices=["standard", "risk_aware"]
+>>>>>>> 7f4dc1f94e3ac167bdb21070ededd10db776f44f
     )
 
     parser.add_argument(

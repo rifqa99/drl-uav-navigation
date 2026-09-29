@@ -1,3 +1,7 @@
+<<<<<<< HEAD
+=======
+import os
+>>>>>>> 7f4dc1f94e3ac167bdb21070ededd10db776f44f
 import argparse
 import torch
 import numpy as np
@@ -8,7 +12,10 @@ from env.uav_env import UAVLiDAREnv
 from agents.replay_buffer import ReplayBuffer
 from agents.dqn_agent import DQNAgent
 
+<<<<<<< HEAD
 from pathlib import Path
+=======
+>>>>>>> 7f4dc1f94e3ac167bdb21070ededd10db776f44f
 
 def make_env(current_obstacles, reward_mode):
     return UAVLiDAREnv(
@@ -41,11 +48,18 @@ def train_static(
     max_obstacles = 6
     curriculum_threshold = 0.70
 
+<<<<<<< HEAD
     PROJECT_ROOT = Path(__file__).resolve().parent
     save_dir = PROJECT_ROOT / "outputs"
     checkpoint_dir = save_dir / "checkpoints"
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
     
+=======
+    save_dir = f"/content/drive/MyDrive/drl-uav-navigation/outputs_static_{reward_mode}"
+    checkpoint_dir = os.path.join(save_dir, "checkpoints")
+    os.makedirs(checkpoint_dir, exist_ok=True)
+
+>>>>>>> 7f4dc1f94e3ac167bdb21070ededd10db776f44f
     env = make_env(current_obstacles, reward_mode)
 
     state_dim = env.observation_space.shape[0] * stack_size
@@ -78,7 +92,11 @@ def train_static(
 
     success_window = deque(maxlen=100)
 
+<<<<<<< HEAD
     if checkpoint_to_load and Path(checkpoint_to_load).exists():
+=======
+    if checkpoint_to_load and os.path.exists(checkpoint_to_load):
+>>>>>>> 7f4dc1f94e3ac167bdb21070ededd10db776f44f
         checkpoint = torch.load(
             checkpoint_to_load,
             map_location=device,
@@ -212,7 +230,14 @@ def train_static(
             )
 
         if episode % 100 == 0:
+<<<<<<< HEAD
             checkpoint_path = checkpoint_dir / f"dqn_static_{reward_mode}_obs_{current_obstacles}_ep_{episode}.pth"
+=======
+            checkpoint_path = os.path.join(
+                checkpoint_dir,
+                f"dqn_static_{reward_mode}_obs_{current_obstacles}_ep_{episode}.pth"
+            )
+>>>>>>> 7f4dc1f94e3ac167bdb21070ededd10db776f44f
 
             torch.save(
                 {
@@ -227,6 +252,7 @@ def train_static(
                 checkpoint_path
             )
 
+<<<<<<< HEAD
             np.save(save_dir / "rewards_history.npy", np.array(rewards_history))
             np.save(save_dir / "loss_history.npy", np.array(loss_history))
             np.save(save_dir / "success_history.npy", np.array(success_history))
@@ -236,6 +262,17 @@ def train_static(
             np.save(save_dir / "speed_history.npy", np.array(speed_history))
             np.save(save_dir / "omega_history.npy", np.array(omega_history))
             np.save(save_dir / "steps_history.npy", np.array(steps_history))
+=======
+            np.save(os.path.join(save_dir, "rewards_history.npy"), np.array(rewards_history))
+            np.save(os.path.join(save_dir, "loss_history.npy"), np.array(loss_history))
+            np.save(os.path.join(save_dir, "success_history.npy"), np.array(success_history))
+            np.save(os.path.join(save_dir, "obstacle_history.npy"), np.array(obstacle_history))
+            np.save(os.path.join(save_dir, "min_proximity_history.npy"), np.array(min_proximity_history))
+            np.save(os.path.join(save_dir, "rotation_history.npy"), np.array(rotation_history))
+            np.save(os.path.join(save_dir, "speed_history.npy"), np.array(speed_history))
+            np.save(os.path.join(save_dir, "omega_history.npy"), np.array(omega_history))
+            np.save(os.path.join(save_dir, "steps_history.npy"), np.array(steps_history))
+>>>>>>> 7f4dc1f94e3ac167bdb21070ededd10db776f44f
 
             print(f"Saved checkpoint: {checkpoint_path}")
 
@@ -249,7 +286,11 @@ if __name__ == "__main__":
         "--reward_mode",
         type=str,
         default="standard",
+<<<<<<< HEAD
         choices=["standard"]
+=======
+        choices=["standard", "risk_aware"]
+>>>>>>> 7f4dc1f94e3ac167bdb21070ededd10db776f44f
     )
 
     parser.add_argument(

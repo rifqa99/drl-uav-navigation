@@ -1,3 +1,7 @@
+<<<<<<< HEAD
+=======
+import os
+>>>>>>> 7f4dc1f94e3ac167bdb21070ededd10db776f44f
 import numpy as np
 import torch
 from collections import deque
@@ -6,6 +10,7 @@ import pandas as pd
 from env.uav_env_dynamic import UAVLiDARDynamicEnv
 from agents.dqn_agent import DQNAgent
 
+<<<<<<< HEAD
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -19,6 +24,23 @@ CHECKPOINTS = {
 SAVE_DIR = BASE_DIR / "test_results"
 SAVE_DIR.mkdir(parents=True, exist_ok=True)
 
+=======
+
+BASE_DIR = r"G:\UNİ\BAHAR\DRL\Project\drl-uav-navigation\outputs"
+
+CHECKPOINTS = {
+    "Dynamic Standard":
+        os.path.join(BASE_DIR, "checkpoints",
+                     "dqn_dynamic_standard_obs_8_ep_3200.pth"),
+
+    # "Risk-Aware":
+    #     os.path.join(BASE_DIR, "checkpoints",
+    #                  "dqn_dynamic_risk_aware_obs_8_ep_6000.pth"),
+}
+
+SAVE_DIR = os.path.join(BASE_DIR, "test_results")
+os.makedirs(SAVE_DIR, exist_ok=True)
+>>>>>>> 7f4dc1f94e3ac167bdb21070ededd10db776f44f
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 STACK_SIZE = 3
@@ -148,7 +170,11 @@ if __name__ == "__main__":
     dfs = []
 
     for model_name, ckpt in CHECKPOINTS.items():
+<<<<<<< HEAD
         if not ckpt.exists():
+=======
+        if not os.path.exists(ckpt):
+>>>>>>> 7f4dc1f94e3ac167bdb21070ededd10db776f44f
             print(f"Missing checkpoint: {ckpt}")
             continue
 
@@ -158,9 +184,15 @@ if __name__ == "__main__":
     results = pd.concat(dfs, ignore_index=True)
     summary = summarize(results)
 
+<<<<<<< HEAD
     raw_path = SAVE_DIR / "raw_test_results.csv"
     summary_path = SAVE_DIR / "summary_test_results.csv"
     
+=======
+    raw_path = os.path.join(SAVE_DIR, "raw_test_results.csv")
+    summary_path = os.path.join(SAVE_DIR, "summary_test_results.csv")
+
+>>>>>>> 7f4dc1f94e3ac167bdb21070ededd10db776f44f
     results.to_csv(raw_path, index=False)
     summary.to_csv(summary_path, index=False)
 
