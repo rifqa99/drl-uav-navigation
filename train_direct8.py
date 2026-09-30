@@ -54,7 +54,7 @@ def train_direct8(seed=42):
     # ============================================================
 
     save_dir = os.path.join(
-        "/content/drive/MyDrive/drl-uav-navigation/outputs_direct8",
+        "/content/drive/MyDrive/drl-uav-navigation/outputs_direct8_fixed",
         f"seed_{seed}"
     )
 
@@ -73,7 +73,7 @@ def train_direct8(seed=42):
         n_obstacles=8,
         reward_mode="standard",
         n_lidar=256,
-        seed=42
+        seed=seed
     )
 
     state_dim = env.observation_space.shape[0] * stack_size
@@ -125,7 +125,7 @@ def train_direct8(seed=42):
 
     for episode in tqdm(range(1, episodes + 1)):
 
-        obs, _ = env.reset()
+        obs, _ = env.reset(seed=seed + episode)   
 
         frame_stack = deque(
             [obs] * stack_size,
@@ -159,17 +159,10 @@ def train_direct8(seed=42):
             # METRICS
             # ----------------------------------------------------
 
-            raw_lidar = info.get("raw_lidar", None)
-
-            if raw_lidar is not None:
-
-                min_lidar = float(
-                    np.min(np.abs(raw_lidar))
-                )
-
+            if "min_lidar_distance" in info:
                 episode_min_proximity = min(
                     episode_min_proximity,
-                    min_lidar
+                    float(info["min_lidar_distance"])
                 )
 
             if action in [3, 4]:
@@ -204,7 +197,7 @@ def train_direct8(seed=42):
             # NETWORK UPDATE
             # ----------------------------------------------------
 
-            if len(replay_buffer) > batch_size:
+            if len(replay_buffer) >= batch_size:
 
                 loss = agent.train_step(
                     replay_buffer,
