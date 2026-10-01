@@ -11,7 +11,7 @@ from agents.dqn_agent import DQNAgent
 from agents.replay_buffer import ReplayBuffer
 
 
-def train_direct8(seed=42):
+def train_direct8(seed=43):
 
     # ============================================================
     # REPRODUCIBILITY
@@ -388,4 +388,4 @@ def train_direct8(seed=42):
 
 
 if __name__ == "__main__":
-    train_direct8(seed=42)
+    train_direct8(seed=43)
