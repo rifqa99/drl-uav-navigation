@@ -24,7 +24,7 @@ from agents.replay_buffer import ReplayBuffer
 # Everything else remains identical.
 # ============================================================
 
-THRESHOLD = 0.80
+THRESHOLD = 0.70
 SEED = 42
 
 

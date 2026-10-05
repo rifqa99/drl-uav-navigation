@@ -31,7 +31,7 @@ from agents.dqn_agent import DQNAgent
 # USER INPUT
 # ============================================================
 
-THRESHOLD = 80
+THRESHOLD = 70
 SEED = 42
 
 
@@ -1273,8 +1273,8 @@ print(
     "=" * 100
 )
 
-display(
-    summary_df.round(3)
+print(
+    summary_df.round(3).to_string(index=False)
 )
 
 
