@@ -12,10 +12,34 @@ from agents.replay_buffer import ReplayBuffer
 
 
 # ============================================================
-# ADAPTIVE CURRICULUM — 60% THRESHOLD
+# EXPERIMENT CONFIGURATION
+# ============================================================
+#
+# CHANGE ONLY THRESHOLD FOR THE THRESHOLD-SENSITIVITY RUNS:
+#
+#   0.60 -> Adaptive-60
+#   0.70 -> Adaptive-70
+#   0.80 -> Adaptive-80
+#
+# Everything else remains identical.
 # ============================================================
 
-def train_adaptive60(seed=42):
+THRESHOLD = 0.80
+SEED = 42
+
+
+# ============================================================
+# ADAPTIVE CURRICULUM TRAINING
+# ============================================================
+
+def train_adaptive(seed=SEED, threshold=THRESHOLD):
+
+    # ========================================================
+    # EXPERIMENT NAME
+    # ========================================================
+
+    threshold_percent = int(round(threshold * 100))
+    experiment_name = f"adaptive{threshold_percent}"
 
     # ========================================================
     # REPRODUCIBILITY
@@ -45,7 +69,7 @@ def train_adaptive60(seed=42):
 
     target_update_frequency = 10
 
-    curriculum_threshold = 0.60
+    curriculum_threshold = threshold
     success_window_size = 100
 
     max_obstacles = 8
@@ -55,8 +79,8 @@ def train_adaptive60(seed=42):
     # ========================================================
 
     save_dir = os.path.join(
-        "/content/drive/MyDrive/drl-uav-navigation/"
-        "outputs_adaptive60",
+        "/content/drive/MyDrive/drl-uav-navigation",
+        f"outputs_{experiment_name}",
         f"seed_{seed}"
     )
 
@@ -73,13 +97,19 @@ def train_adaptive60(seed=42):
     # ========================================================
 
     print("=" * 70)
-    print("ADAPTIVE CURRICULUM DDDQN — THRESHOLD 60%")
+
+    print(
+        f"ADAPTIVE CURRICULUM DDDQN — "
+        f"THRESHOLD {threshold_percent}%"
+    )
+
     print(f"Training seed       : {seed}")
     print(f"Device              : {device}")
     print("Progression         : 2 -> 4 -> 6 -> 8")
-    print("Window              : 100 episodes")
-    print("Threshold           : 60%")
-    print("Total episodes      : 8000")
+    print(f"Window              : {success_window_size} episodes")
+    print(f"Threshold           : {threshold_percent}%")
+    print(f"Total episodes      : {episodes}")
+
     print("=" * 70)
 
     # ========================================================
@@ -161,9 +191,15 @@ def train_adaptive60(seed=42):
     # Curriculum transition episodes
     transition_history = []
 
-    # IMPORTANT:
-    # This is the stage-specific rolling window.
-    # It is cleared after each curriculum transition.
+    # ========================================================
+    # STAGE-SPECIFIC SUCCESS WINDOW
+    # ========================================================
+    #
+    # This window is cleared after every curriculum transition.
+    # Therefore, each new obstacle stage must independently
+    # demonstrate the required success rate.
+    # ========================================================
+
     success_window = deque(
         maxlen=success_window_size
     )
@@ -209,6 +245,11 @@ def train_adaptive60(seed=42):
                 )
 
                 print(
+                    f"Threshold: "
+                    f"{threshold_percent}%"
+                )
+
+                print(
                     f"Rolling SR: "
                     f"{rolling_sr * 100:.1f}%"
                 )
@@ -219,7 +260,9 @@ def train_adaptive60(seed=42):
                 )
 
                 # --------------------------------------------
-                # Re-create environment changing ONLY density
+                # Re-create environment.
+                #
+                # ONLY obstacle density changes.
                 # --------------------------------------------
 
                 env = UAVLiDARDynamicEnv(
@@ -230,7 +273,7 @@ def train_adaptive60(seed=42):
                 )
 
                 # --------------------------------------------
-                # Restore exploration
+                # Restore exploration after transition
                 # --------------------------------------------
 
                 agent.epsilon = max(
@@ -254,7 +297,10 @@ def train_adaptive60(seed=42):
                     }
                 )
 
-                # New stage gets a fresh window
+                # --------------------------------------------
+                # New stage gets a fresh success window
+                # --------------------------------------------
+
                 success_window.clear()
 
                 print(
@@ -296,9 +342,17 @@ def train_adaptive60(seed=42):
 
         while True:
 
+            # ------------------------------------------------
+            # ACTION
+            # ------------------------------------------------
+
             action = agent.select_action(
                 state
             )
+
+            # ------------------------------------------------
+            # ENVIRONMENT STEP
+            # ------------------------------------------------
 
             (
                 next_obs,
@@ -328,6 +382,7 @@ def train_adaptive60(seed=42):
                     )
                 )
 
+            # Actions 3 and 4 are rotation actions
             if action in [3, 4]:
                 episode_total_rotation += 1
 
@@ -345,7 +400,7 @@ def train_adaptive60(seed=42):
             )
 
             # =================================================
-            # REPLAY
+            # REPLAY BUFFER
             # =================================================
 
             replay_buffer.push(
@@ -357,7 +412,7 @@ def train_adaptive60(seed=42):
             )
 
             # =================================================
-            # TRAINING STEP
+            # NETWORK TRAINING
             # =================================================
 
             if (
@@ -371,12 +426,15 @@ def train_adaptive60(seed=42):
                 )
 
                 if loss is not None:
+
                     episode_losses.append(
                         loss
                     )
 
             state = next_state
+
             episode_reward += reward
+
             final_info = info
 
             if done:
@@ -386,17 +444,20 @@ def train_adaptive60(seed=42):
         # END OF EPISODE
         # ====================================================
 
+        # Epsilon decay
         agent.decay_epsilon()
 
+        # Target network update
         if (
             episode
             % target_update_frequency
             == 0
         ):
+
             agent.update_target_network()
 
         # ====================================================
-        # OUTCOME
+        # EPISODE OUTCOME
         # ====================================================
 
         success = bool(
@@ -424,10 +485,17 @@ def train_adaptive60(seed=42):
             1 if success else 0
         )
 
-        # Stage-specific curriculum window
+        # ====================================================
+        # UPDATE STAGE SUCCESS WINDOW
+        # ====================================================
+
         success_window.append(
             success_value
         )
+
+        # ====================================================
+        # AVERAGE EPISODE LOSS
+        # ====================================================
 
         avg_loss = (
             float(
@@ -443,6 +511,7 @@ def train_adaptive60(seed=42):
             episode_min_proximity
             == float("inf")
         ):
+
             episode_min_proximity = 0.0
 
         # ====================================================
@@ -526,7 +595,7 @@ def train_adaptive60(seed=42):
             checkpoint_path = os.path.join(
                 checkpoint_dir,
                 (
-                    f"adaptive60_obs_"
+                    f"{experiment_name}_obs_"
                     f"{current_obstacles}_"
                     f"seed{seed}_"
                     f"ep_{episode}.pth"
@@ -535,8 +604,11 @@ def train_adaptive60(seed=42):
 
             torch.save(
                 {
-                    "episode": episode,
-                    "seed": seed,
+                    "episode":
+                        episode,
+
+                    "seed":
+                        seed,
 
                     "obstacles":
                         current_obstacles,
@@ -561,6 +633,9 @@ def train_adaptive60(seed=42):
 
                     "window":
                         success_window_size,
+
+                    "transitions":
+                        transition_history,
 
                 },
                 checkpoint_path
@@ -676,7 +751,7 @@ def train_adaptive60(seed=42):
 
     final_checkpoint = os.path.join(
         checkpoint_dir,
-        f"adaptive60_seed{seed}_FINAL.pth"
+        f"{experiment_name}_seed{seed}_FINAL.pth"
     )
 
     torch.save(
@@ -722,6 +797,7 @@ def train_adaptive60(seed=42):
     # ========================================================
 
     histories = {
+
         "rewards_history.npy":
             rewards_history,
 
@@ -764,12 +840,18 @@ def train_adaptive60(seed=42):
         )
 
     # ========================================================
-    # PRINT TRANSITIONS
+    # FINAL SUMMARY
     # ========================================================
 
     print("\n" + "=" * 70)
-    print("ADAPTIVE-60 TRAINING COMPLETE")
+
+    print(
+        f"ADAPTIVE-{threshold_percent} "
+        f"TRAINING COMPLETE"
+    )
+
     print(f"Seed             : {seed}")
+    print(f"Threshold        : {threshold_percent}%")
     print(f"Final obstacles  : {current_obstacles}")
     print(f"Final epsilon    : {agent.epsilon:.4f}")
 
@@ -789,11 +871,19 @@ def train_adaptive60(seed=42):
             )
 
     else:
-        print("No curriculum transitions.")
+
+        print(
+            "No curriculum transitions."
+        )
 
     print(
         f"\nFinal checkpoint : "
         f"{final_checkpoint}"
+    )
+
+    print(
+        f"Output directory : "
+        f"{save_dir}"
     )
 
     print("=" * 70)
@@ -804,5 +894,8 @@ def train_adaptive60(seed=42):
 # ============================================================
 
 if __name__ == "__main__":
-    train_adaptive60(seed=42)
-    
+
+    train_adaptive(
+        seed=SEED,
+        threshold=THRESHOLD
+    )
